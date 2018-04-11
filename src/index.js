@@ -1,1 +1,3 @@
-console.log("Hello world! oh hi");
+import _RRule from "./RRule";
+
+export { _RRule as RRule };
