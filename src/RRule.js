@@ -656,16 +656,10 @@ export default class RRule {
 			
 			this._timeset = [];
 			
-			for (let h = 0, hl = this._byhour.length; h < hl; ++h) {
-				const hour = this._byhour[h];
-				for (let m = 0, ml = this._byhour.length; m < ml; ++m) {
-					const minute = this._byminute[m];
-					for (let s = 0, sl = this._byhour.length; s < sl; ++s) {
-						const second = this._bysecond[s];
+			for (const hour of this._byHour)
+				for (const minute of this._byMinute)
+					for (const second of this._bySecond)
 						this._timeset.push([hour, minute, second]);
-					}
-				}
-			}
 		}
 		
 	}
