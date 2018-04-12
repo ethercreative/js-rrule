@@ -433,7 +433,7 @@ const replaceChars = {
  * Simulates PHP's date function
  *
  * @param {Date} date
- * @param {string}  format
+ * @param {string} format
  */
 export default function format (date, format) {
 	return format.replace(/(\\?)(.)/g, function(_, esc, chr) {

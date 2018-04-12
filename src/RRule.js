@@ -2,6 +2,9 @@ import notEmpty from "./_helpers/notEmpty";
 import formatDate from "./_helpers/formatDate";
 import pymod from "./_helpers/pymod";
 import isLeapYear from "./_helpers/isLeapYear";
+import RSet from "./RSet";
+import dateDiff from "./_helpers/dateDiff";
+import range from "./_helpers/range";
 
 /**
  * Implementation of RRULE as defined by RFC 5545 (iCalendar).
@@ -114,7 +117,7 @@ export default class RRule {
 	
 	// Cache variables
 	_total = null;
-	_cache = {};
+	_cache = [];
 	
 	// Public Functions
 	// =========================================================================
@@ -692,7 +695,420 @@ export default class RRule {
 	 * @return {string}
 	 */
 	rfcString (includeTimezone = true) {
-		// ...
+		let str = "";
+		
+		if (this._dtstart) {
+			if (!includeTimezone) {
+				str = `DTSTART:${formatDate(this._dtstart, "Ymd\THis")}\nRRULE:`;
+			}
+			
+			else {
+				str = `DTSTART:${formatDate(this._dtstart, "Ymd\THis\Z")}\nRRULE:`;
+			}
+		}
+		
+		const parts = [];
+		
+		for (const key in this._rule) {
+			let value = this._rule[key];
+			
+			if (
+				key === "DTSTART"
+				|| (key === "INTERVAL" && value === 1)
+				|| (key === "WKST" && value === "MO")
+			) continue;
+			
+			if (key === "UNTIL" && value) {
+				if (!includeTimezone) {
+					parts.push(`UNTIL:${formatDate(this._until, "Ymd\THis")}`);
+				}
+				
+				else {
+					parts.push(`UNTIL:${formatDate(this._until, "Ymd\THis\Z")}`);
+				}
+				
+				continue;
+			}
+			
+			if (
+				key === "FREQ"
+				&& value
+				&& !~Object.keys(RRule.frequencies).indexOf(value)
+			) {
+				const index = Object.values(RRule.frequencies).indexOf(value);
+				
+				if (index > -1)
+					value = Object.keys(RRule)[index];
+			}
+			
+			if (value) {
+				if (Array.isArray(value))
+					value = value.join(",");
+				
+				parts.push(`${key}=${value}`.toUpperCase().replace(/ /g, ""));
+			}
+		}
+		
+		str += parts.join(";");
+		
+		return str;
+	}
+	
+	/**
+	 * Takes an RFC 5545 string and returns either an RRule or an RSet
+	 *
+	 * @param {string} string - The RFC string
+	 * @param {boolean=} forceRSet - Force an RSet to be returned
+	 * @return {RRule|RSet}
+	 */
+	static createFromRfcString (string, forceRSet = false) {
+		let cls = RSet;
+		
+		if (!forceRSet) {
+			// Try to detect if we have an RRule or a Set
+			const upperCasedString = string.toUpperCase();
+			const nbRRule = upperCasedString.split("RRULE").length - 1;
+			
+			if (nbRRule === 0)
+				cls = RRule;
+			
+			else if (nbRRule > 1)
+				cls = RSet;
+			
+			else {
+				cls = RRule;
+				
+				if (
+					!~upperCasedString.indexOf("EXDATE")
+					|| !~upperCasedString.indexOf("RDATE")
+					|| !~upperCasedString.indexOf("EXRULE")
+				) {
+					cls = RSet;
+				}
+			}
+		}
+		
+		return new cls(string);
+	}
+	
+	/**
+	 * Clear the cache
+	 *
+	 * It isn't recommended to use this method while iterating!
+	 *
+	 * @return {RRule}
+	 */
+	clearCache () {
+		this._total = null;
+		this._cache = [];
+		
+		return this;
+	}
+	
+	// RRule Interface (if JS had interfaces)
+	// =========================================================================
+	
+	/**
+	 * Returns true of the RRule has an end condition, false otherwise
+	 *
+	 * @return {boolean}
+	 */
+	isFinite = () => !!(this._count || this._until);
+	
+	/**
+	 * Returns true if the RRule has no end condition (infinite)
+	 *
+	 * @return {boolean}
+	 */
+	isInfinite = () => !this._count && !this._until;
+	
+	/**
+	 * Return all the occurrences in an array of Date()'s
+	 *
+	 * @param {number|null=} limit - Limit the result set to n occurrences
+	 *      (0, null, or false === everything)
+	 * @return {Date[]}
+	 */
+	getOccurrences (limit = null) {
+		if (!limit && this.isInfinite())
+			throw new Error(
+				"Cannot get all occurrences of an infinite recurrence rule!"
+			);
+		
+		let iterator = this;
+		
+		// Cached version already computed
+		if (this._total !== null)
+			iterator = this._cache;
+		
+		const res = [];
+		let n = 0;
+		
+		for (const occurrence of iterator) {
+			res.push(new Date(occurrence.toUTCString()));
+			++n;
+			if (limit && n >= limit)
+				break;
+		}
+		
+		return res;
+	}
+	
+	/**
+	 * Return all the occurrences after a date, before a date, or
+	 * between two dates
+	 *
+	 * @param {Date|null} begin - Return all occurrences after
+	 * @param {Date|null} end - Return all occurrences before
+	 * @param {number|null=} limit - Limit the result set to n occurrences
+	 *      (0, null, or false === everything)
+	 * @return {Array}
+	 */
+	getOccurrencesBetween (begin, end, limit = null) {
+		if (begin !== null)
+			begin = RRule.parseDate(begin);
+		
+		if (end !== null)
+			end = RRule.parseDate(end);
+		
+		else if (!limit && this.isInfinite())
+			throw new Error(
+				"Cannot get all occurrences of an infinite recurrence rule!"
+			);
+		
+		let iterator = this;
+		
+		if (this._total === null)
+			iterator = this._cache;
+		
+		const res = [];
+		let n = 0;
+		
+		for (const occurrence of iterator) {
+			if (begin !== null && occurrence.getTime() < begin.getTime())
+				continue;
+			
+			if (end !== null && occurrence.getTime() > end.getTime())
+				break;
+			
+			res.push(new Date(occurrence.toUTCString()));
+			++n;
+			if (limit && n >= limit)
+				break;
+		}
+		
+		return res;
+	}
+	
+	/**
+	 * Return true if the date is an occurrence
+	 *
+	 * This method will attempt to determine the result programmatically.
+	 * However depending on the BYxxx rule parts that have been set, it might
+	 * not always be possible. As a last resort, this method will loop
+	 * through all occurrences until date. This will incur some performance
+	 * penalty.
+	 *
+	 * @param {Date|string} date
+	 * @return {boolean}
+	 */
+	occursAt (date) {
+		date = RRule.parseDate(date);
+		const timestamp = date.getTime();
+		
+		// Check whether the date is in the cache
+		// (whether the cache is complete or not)
+		if (~this._cache.indexOf(date))
+			return true;
+		
+		// If the cache is complete and doesn't contain the date
+		else if (this._total !== null)
+			return false;
+		
+		// Check if date is within start and until
+		if (
+			timestamp < this._dtstart.getTime()
+			|| (this._until && timestamp > this._until.getTime())
+		) return false;
+		
+		// Check against the BYxxx rules (except BYSETPOS)
+		if (this._byhour && !~this._byhour.indexOf(formatDate(date, "G")|0))
+			return false;
+		
+		if (this._byminute && !~this._byminute.indexOf(formatDate(date, "i")|0))
+			return false;
+		
+		if (this._bysecond && !~this._bysecond.indexOf(formatDate(date, "s")|0))
+			return false;
+		
+		// Create mask variable
+		const [year, month, day, yearDay, weekday] = formatDate(
+			date,
+			"Y n j z N"
+		).split(" ").map(n => n|0);
+		
+		const masks = {};
+		
+		masks["weekdayOf1stYearDay"] = formatDate(
+			new Date(`${year}-01-01 00:00:00`),
+			"N"
+		);
+		
+		masks["yearDayToWeekday"] = RRule.WEEKDAY_MASK.slice(
+			masks["weekdayOf1stYearDay"] - 1
+		);
+		
+		if (isLeapYear(year)) {
+			masks["yearLen"] = 366;
+			masks["lastDayOfMonth"] = RRule.LAST_DAY_OF_MONTH_366;
+		}
+		
+		else {
+			masks["yearLen"] = 365;
+			masks["lastDayOfMonth"] = RRule.LAST_DAY_OF_MONTH;
+		}
+		
+		const monthLen =
+			masks["lastDayOfMonth"][month] - masks["lastDayOfMonth"][month - 1];
+		
+		if (this._bymonth && !~this._bymonth.indexOf(month))
+			return false;
+		
+		if (this._bymonthday || this._bymonthdayNegative) {
+			const monthDayNegative = -1 * (monthLen - day + 1);
+			
+			if (
+				!~this._bymonthday.indexOf(day)
+				&& !~this._bymonthdayNegative.indexOf(monthDayNegative)
+			) return false;
+		}
+		
+		if (this._byyearday) {
+			// Caution here, yearDay starts from 0
+			const yearDayNegative = -1 * (masks["yearLen"] - yearDay);
+			
+			if (
+				!~this._byyearday.indexOf(yearDay + 1)
+				&& !~this._byyearday.indexOf(yearDayNegative)
+			) return false;
+		}
+		
+		if (this._byweekday || this._byweekdayNth) {
+			this._buildNthWeekdayMask(year, month, day, masks);
+			
+			if (
+				!~this._byweekday.indexOf(weekday)
+				&& !~masks["yearDayIsNthWeekday"].indexOf(yearDay)
+			) return false;
+		}
+		
+		if (this._byweekno) {
+			this._buildWeekNoMask(year, month, day, masks);
+			
+			if (!~masks["yearDayIsInWeekNo"].indexOf(yearDay))
+				return false;
+		}
+		
+		// Now we've exhausted all the BYxxx rules (except BYSETPOS), we still
+		// need to consider FREQUENCY and INTERVAL.
+		const [startYear, startMonth/*, startDay*/] = formatDate(
+			this._dtstart,
+			"Y-m-d"
+		).split("-").map(n => n|0);
+		
+		switch (this._freq) {
+			case RRule.YEARLY:
+				if ((year - startYear) % this._interval !== 0)
+					return false;
+				break;
+			
+			case RRule.MONTHLY: {
+				// We need to count the number of months elapsed
+				const diff = (12 - startMonth) + 12 * (year - startYear - 1) + month;
+				
+				if ((diff % this._interval) !== 0)
+					return false;
+				break;
+			}
+			
+			case RRule.WEEKLY: {
+				// Count the number of days and divide by 7 to get the number of
+				// weeks. We add some days to align DTSTART with WKST.
+				let diff = dateDiff(date, this._dtstart);
+				diff = (
+					(diff.days + pymod(
+						(formatDate(this._dtstart, "N")|0) - this._wkst,
+						7
+					)) / 7
+		        )|0;
+				
+				if (diff % this._interval !== 0)
+					return false;
+				break;
+			}
+			
+			case RRule.DAILY: {
+				// Count the number of days
+				const diff = dateDiff(date, this._dtstart);
+				if (diff.days % this._interval !== 0)
+					return false;
+				break;
+			}
+			
+			case RRule.HOURLY: {
+				let diff = dateDiff(date, this._dtstart);
+				diff = diff.hours + diff.days * 24;
+				if (diff % this._interval !== 0)
+					return false;
+				break;
+			}
+			
+			case RRule.MINUTELY: {
+				let diff = dateDiff(date, this._dtstart);
+				diff = diff.minutes + diff.hours * 60 + diff.days * 1440;
+				if (diff % this._interval !== 0)
+					return false;
+				break;
+			}
+			
+			case RRule.SECONDLY: {
+				let diff = dateDiff(date, this._dtstart);
+				// XXX doesn't count for leap seconds (should it?)
+				diff = diff.seconds + diff.minutes * 60 + diff.hours * 3600 + diff.days * 86400;
+				if (diff % this._interval !== 0)
+					return false;
+				break;
+			}
+			
+			default:
+				throw new Error(`Invalid frequency: ${this._freq}`);
+		}
+		
+		// Now we are left with 2 rules: BYSETPOS and COUNT
+		//
+		// - I think BYSETPOS *could* be determined without looping by
+		// considering the current set, calculating all the occurrences of the
+		// current set and determining the position of $date in the result set.
+		// However I'm not convinced it's worth it.
+		//
+		// - I don't see any way to determine COUNT programmatically, because
+		// occurrences might sometimes be dropped (e.g. a 29 Feb on a normal
+		// year, or during the switch to DST) and not counted in the final set.
+		
+		if (!this._count && !this._bysetpos)
+			return true;
+		
+		// As a fallback we have to loop :(
+		for (const occurrence of this) {
+			if (occurrence.getTime() === date.getTime())
+				return true;
+			
+			if (occurrence.getTime() > date.getTime())
+				break;
+		}
+		
+		// If the loop came up short
+		return false;
 	}
 	
 	// Internal Functions
@@ -711,6 +1127,228 @@ export default class RRule {
 			throw new Error("Unable to parse date: " + rawDate);
 		
 		return new Date(date.toUTCString());
+	}
+	
+	/**
+	 * Return an array of days of the year (numbered from 0 to 365) of the
+	 * current timeframe (year, month, week, day) containing the current date.
+	 *
+	 * @param {number} year
+	 * @param {number} month
+	 * @param {number} day
+	 * @param {Array} masks
+	 * @return {Array}
+	 * @private
+	 */
+	_getDaySet (year, month, day, masks) {
+		switch (this._freq) {
+			case RRule.YEARLY:
+				return range(0, masks["yearLen"] - 1);
+				
+			case RRule.MONTHLY: {
+				const start = masks["lastDayOfMonth"][month - 1]
+					, stop  = masks["lastDayOfMonth"][month];
+				
+				return range(start, stop - 1);
+			}
+			
+			case RRule.WEEKLY: {
+				// On first iteration, the first week will not be complete.
+				// We don't backtrack to the first day of the week, to avoid
+				// crossing year boundary in reverse (i.e. if the week started
+				// during the previous year), because that would generate
+				// negative indexes (which would not work with the masks).
+				const set = [];
+				let i = formatDate(new Date(year, month, day, 0, 0, 0), "z")|0;
+				
+				for (let j = 0; j < 7; ++j) {
+					set.push(i);
+					++i;
+					if (masks["yearDayToWeekday"][i] === this._wkst)
+						break;
+				}
+				
+				return set;
+			}
+			
+			case RRule.DAILY:
+			case RRule.HOURLY:
+			case RRule.MINUTELY:
+			case RRule.SECONDLY:
+				let i = formatDate(new Date(year, month, day, 0, 0, 0), "z")|0;
+				return [i];
+		}
+	}
+	
+	// TODO: https://github.com/rlanvin/php-rrule/blob/master/src/RRule.php#L1216
+	
+	// Constants
+	// =========================================================================
+	
+	// Every mask is 7 days longer to handle cross-year weekly periods
+	
+	static get MONTH_MASK () {
+		return [
+			1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+			2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+			3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+			4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
+			5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
+			6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+			7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+			8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,
+			9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
+			10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,
+			11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,
+			12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,
+			1,1,1,1,1,1,1
+		];
+	}
+	
+	static get MONTH_MASK_366 () {
+		return [
+			1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+			2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+			3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+			4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
+			5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
+			6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+			7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+			8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,
+			9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
+			10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,
+			11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,
+			12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,
+			1,1,1,1,1,1,1
+		];
+	}
+	
+	static get MONTHDAY_MASK () {
+		return [
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7
+		];
+	}
+	
+	static get MONTHDAY_MASK_366 () {
+		return [
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,
+			1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+			1,2,3,4,5,6,7
+		];
+	}
+	
+	static get NEGATIVE_MONTHDAY_MASK () {
+		return [
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25
+		];
+	}
+	
+	static get NEGATIVE_MONTHDAY_MASK_366 () {
+		return [
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,
+			-31,-30,-29,-28,-27,-26,-25
+		];
+	}
+	
+	static get WEEKDAY_MASK () {
+		return [
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,
+			1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7,1,2,3,4,5,6,7
+		];
+	}
+	
+	static get LAST_DAY_OF_MONTH () {
+		return [
+			0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365
+		];
+	}
+	
+	static get LAST_DAY_OF_MONTH_366 () {
+		return [
+			0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366
+		];
+	}
+	
+	/**
+	 * Maximum number of cycles after which a calendar repeats itself. This
+	 * is used to detect infinite loop: if no occurrence has been found
+	 * after this numbers of cycles, we can abort.
+	 *
+	 * The Gregorian calendar cycle repeat completely every 400 years
+	 * (146,097 days or 20,871 weeks).
+	 * A smaller cycle would be 28 years (1,461 weeks), but it only works
+	 * if there is no dropped leap year in between.
+	 * 2100 will be a dropped leap year, but I'm going to assume it's not
+	 * going to be a problem anytime soon, so at the moment I use the 28 years
+	 * cycle.
+	 *
+	 * @type {Object}
+	 */
+	static get REPEAT_CYCLES () {
+		return {
+			[RRule.YEARLY]: 28,
+			[RRule.MONTHLY]: 336,
+			[RRule.WEEKLY]: 1461,
+			[RRule.DAILY]: 10227,
+			
+			[RRule.HOURLY]: 24,
+			[RRule.MINUTELY]: 1440,
+			[RRule.SECONDLY]: 86400,
+		};
 	}
 	
 }

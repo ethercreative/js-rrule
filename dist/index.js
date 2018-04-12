@@ -354,7 +354,7 @@
 	 * Simulates PHP's date function
 	 *
 	 * @param {Date} date
-	 * @param {string}  format
+	 * @param {string} format
 	 */
 	function format(date, format) {
 		return format.replace(/(\\?)(.)/g, function (_, esc, chr) {
@@ -380,6 +380,12 @@
 	 *
 	 * @copyright 2006 The Closure Library Authors.
 	 */
+	function pymod(a, b) {
+	  var x = a % b;
+
+	  // If x and b differ in sign, add b to wrap the result to the correct sign.
+	  return x * b < 0 ? x + b : x;
+	}
 
 	/**
 	 * Check is a year is a leap year.
@@ -387,6 +393,11 @@
 	 * @param {number} year The year to be checked.
 	 * @return {boolean}
 	 */
+	function isLeapYear(year) {
+	  if (year % 4 !== 0) return false;
+	  if (year % 100 !== 0) return true;
+	  return year % 400 === 0;
+	}
 
 	var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
 	  return typeof obj;
@@ -418,6 +429,21 @@
 	  };
 	}();
 
+	var defineProperty = function (obj, key, value) {
+	  if (key in obj) {
+	    Object.defineProperty(obj, key, {
+	      value: value,
+	      enumerable: true,
+	      configurable: true,
+	      writable: true
+	    });
+	  } else {
+	    obj[key] = value;
+	  }
+
+	  return obj;
+	};
+
 	var _extends = Object.assign || function (target) {
 	  for (var i = 1; i < arguments.length; i++) {
 	    var source = arguments[i];
@@ -431,6 +457,73 @@
 
 	  return target;
 	};
+
+	var slicedToArray = function () {
+	  function sliceIterator(arr, i) {
+	    var _arr = [];
+	    var _n = true;
+	    var _d = false;
+	    var _e = undefined;
+
+	    try {
+	      for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
+	        _arr.push(_s.value);
+
+	        if (i && _arr.length === i) break;
+	      }
+	    } catch (err) {
+	      _d = true;
+	      _e = err;
+	    } finally {
+	      try {
+	        if (!_n && _i["return"]) _i["return"]();
+	      } finally {
+	        if (_d) throw _e;
+	      }
+	    }
+
+	    return _arr;
+	  }
+
+	  return function (arr, i) {
+	    if (Array.isArray(arr)) {
+	      return arr;
+	    } else if (Symbol.iterator in Object(arr)) {
+	      return sliceIterator(arr, i);
+	    } else {
+	      throw new TypeError("Invalid attempt to destructure non-iterable instance");
+	    }
+	  };
+	}();
+
+	var RSet = function RSet() {
+		// TODO
+
+		classCallCheck(this, RSet);
+	};
+
+	function dateDiff(a, b) {
+		var utc1 = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate(), a.getHours(), a.getMinutes(), a.getSeconds()),
+		    utc2 = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate(), b.getHours(), b.getMinutes(), b.getSeconds());
+
+		var diff = utc2 - utc1;
+
+		return {
+			weeks: Math.floor(diff / 6048e5),
+			days: Math.floor(diff / 864e5),
+			hours: Math.floor(diff / 36e5),
+			minutes: Math.floor(diff / 6e4),
+			seconds: Math.floor(diff / 1e3),
+			milliseconds: diff
+		};
+	}
+
+	function range(min, max) {
+		var r = [];
+		for (var i = min, l = max + 1; i < l; ++i) {
+			r.push(i);
+		}return r;
+	}
 
 	/**
 	 * Implementation of RRULE as defined by RFC 5545 (iCalendar).
@@ -561,6 +654,8 @@
 	  * @param {Date=} dtstart - The start date
 	  */
 		function RRule(parts) {
+			var _this = this;
+
 			var dtstart = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
 			classCallCheck(this, RRule);
 			this._rule = {
@@ -599,8 +694,15 @@
 			this._wkst = null;
 			this._timeset = null;
 			this._total = null;
-			this._cache = {};
+			this._cache = [];
 
+			this.isFinite = function () {
+				return !!(_this._count || _this._until);
+			};
+
+			this.isInfinite = function () {
+				return !_this._count && !_this._until;
+			};
 
 			if (typeof parts === "string") {
 				// TODO: Parse string -> RfcParser::parseRRule
@@ -971,13 +1073,71 @@
 
 				this._timeset = [];
 
-				for (var h = 0, hl = this._byhour.length; h < hl; ++h) {
-					var hour = this._byhour[h];
-					for (var m = 0, ml = this._byhour.length; m < ml; ++m) {
-						var minute = this._byminute[m];
-						for (var s = 0, sl = this._byhour.length; s < sl; ++s) {
-							var second = this._bysecond[s];
-							this._timeset.push([hour, minute, second]);
+				var _iteratorNormalCompletion = true;
+				var _didIteratorError = false;
+				var _iteratorError = undefined;
+
+				try {
+					for (var _iterator = this._byHour[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+						var hour = _step.value;
+						var _iteratorNormalCompletion2 = true;
+						var _didIteratorError2 = false;
+						var _iteratorError2 = undefined;
+
+						try {
+							for (var _iterator2 = this._byMinute[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+								var minute = _step2.value;
+								var _iteratorNormalCompletion3 = true;
+								var _didIteratorError3 = false;
+								var _iteratorError3 = undefined;
+
+								try {
+									for (var _iterator3 = this._bySecond[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+										var second = _step3.value;
+
+										this._timeset.push([hour, minute, second]);
+									}
+								} catch (err) {
+									_didIteratorError3 = true;
+									_iteratorError3 = err;
+								} finally {
+									try {
+										if (!_iteratorNormalCompletion3 && _iterator3.return) {
+											_iterator3.return();
+										}
+									} finally {
+										if (_didIteratorError3) {
+											throw _iteratorError3;
+										}
+									}
+								}
+							}
+						} catch (err) {
+							_didIteratorError2 = true;
+							_iteratorError2 = err;
+						} finally {
+							try {
+								if (!_iteratorNormalCompletion2 && _iterator2.return) {
+									_iterator2.return();
+								}
+							} finally {
+								if (_didIteratorError2) {
+									throw _iteratorError2;
+								}
+							}
+						}
+					}
+				} catch (err) {
+					_didIteratorError = true;
+					_iteratorError = err;
+				} finally {
+					try {
+						if (!_iteratorNormalCompletion && _iterator.return) {
+							_iterator.return();
+						}
+					} finally {
+						if (_didIteratorError) {
+							throw _iteratorError;
 						}
 					}
 				}
@@ -1017,9 +1177,418 @@
 		}, {
 			key: "rfcString",
 			value: function rfcString() {
-			}
-			// ...
+				var includeTimezone = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
 
+				var str = "";
+
+				if (this._dtstart) {
+					if (!includeTimezone) {
+						str = "DTSTART:" + format(this._dtstart, "Ymd\THis") + "\nRRULE:";
+					} else {
+						str = "DTSTART:" + format(this._dtstart, "Ymd\THis\Z") + "\nRRULE:";
+					}
+				}
+
+				var parts = [];
+
+				for (var key in this._rule) {
+					var value = this._rule[key];
+
+					if (key === "DTSTART" || key === "INTERVAL" && value === 1 || key === "WKST" && value === "MO") continue;
+
+					if (key === "UNTIL" && value) {
+						if (!includeTimezone) {
+							parts.push("UNTIL:" + format(this._until, "Ymd\THis"));
+						} else {
+							parts.push("UNTIL:" + format(this._until, "Ymd\THis\Z"));
+						}
+
+						continue;
+					}
+
+					if (key === "FREQ" && value && !~Object.keys(RRule.frequencies).indexOf(value)) {
+						var index = Object.values(RRule.frequencies).indexOf(value);
+
+						if (index > -1) value = Object.keys(RRule)[index];
+					}
+
+					if (value) {
+						if (Array.isArray(value)) value = value.join(",");
+
+						parts.push((key + "=" + value).toUpperCase().replace(/ /g, ""));
+					}
+				}
+
+				str += parts.join(";");
+
+				return str;
+			}
+
+			/**
+	   * Takes an RFC 5545 string and returns either an RRule or an RSet
+	   *
+	   * @param {string} string - The RFC string
+	   * @param {boolean=} forceRSet - Force an RSet to be returned
+	   * @return {RRule|RSet}
+	   */
+
+		}, {
+			key: "clearCache",
+
+
+			/**
+	   * Clear the cache
+	   *
+	   * It isn't recommended to use this method while iterating!
+	   *
+	   * @return {RRule}
+	   */
+			value: function clearCache() {
+				this._total = null;
+				this._cache = [];
+
+				return this;
+			}
+
+			// RRule Interface (if JS had interfaces)
+			// =========================================================================
+
+			/**
+	   * Returns true of the RRule has an end condition, false otherwise
+	   *
+	   * @return {boolean}
+	   */
+
+
+			/**
+	   * Returns true if the RRule has no end condition (infinite)
+	   *
+	   * @return {boolean}
+	   */
+
+		}, {
+			key: "getOccurrences",
+
+
+			/**
+	   * Return all the occurrences in an array of Date()'s
+	   *
+	   * @param {number|null=} limit - Limit the result set to n occurrences
+	   *      (0, null, or false === everything)
+	   * @return {Date[]}
+	   */
+			value: function getOccurrences() {
+				var limit = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
+
+				if (!limit && this.isInfinite()) throw new Error("Cannot get all occurrences of an infinite recurrence rule!");
+
+				var iterator = this;
+
+				// Cached version already computed
+				if (this._total !== null) iterator = this._cache;
+
+				var res = [];
+				var n = 0;
+
+				var _iteratorNormalCompletion4 = true;
+				var _didIteratorError4 = false;
+				var _iteratorError4 = undefined;
+
+				try {
+					for (var _iterator4 = iterator[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+						var occurrence = _step4.value;
+
+						res.push(new Date(occurrence.toUTCString()));
+						++n;
+						if (limit && n >= limit) break;
+					}
+				} catch (err) {
+					_didIteratorError4 = true;
+					_iteratorError4 = err;
+				} finally {
+					try {
+						if (!_iteratorNormalCompletion4 && _iterator4.return) {
+							_iterator4.return();
+						}
+					} finally {
+						if (_didIteratorError4) {
+							throw _iteratorError4;
+						}
+					}
+				}
+
+				return res;
+			}
+
+			/**
+	   * Return all the occurrences after a date, before a date, or
+	   * between two dates
+	   *
+	   * @param {Date|null} begin - Return all occurrences after
+	   * @param {Date|null} end - Return all occurrences before
+	   * @param {number|null=} limit - Limit the result set to n occurrences
+	   *      (0, null, or false === everything)
+	   * @return {Array}
+	   */
+
+		}, {
+			key: "getOccurrencesBetween",
+			value: function getOccurrencesBetween(begin, end) {
+				var limit = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
+
+				if (begin !== null) begin = RRule.parseDate(begin);
+
+				if (end !== null) end = RRule.parseDate(end);else if (!limit && this.isInfinite()) throw new Error("Cannot get all occurrences of an infinite recurrence rule!");
+
+				var iterator = this;
+
+				if (this._total === null) iterator = this._cache;
+
+				var res = [];
+				var n = 0;
+
+				var _iteratorNormalCompletion5 = true;
+				var _didIteratorError5 = false;
+				var _iteratorError5 = undefined;
+
+				try {
+					for (var _iterator5 = iterator[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+						var occurrence = _step5.value;
+
+						if (begin !== null && occurrence.getTime() < begin.getTime()) continue;
+
+						if (end !== null && occurrence.getTime() > end.getTime()) break;
+
+						res.push(new Date(occurrence.toUTCString()));
+						++n;
+						if (limit && n >= limit) break;
+					}
+				} catch (err) {
+					_didIteratorError5 = true;
+					_iteratorError5 = err;
+				} finally {
+					try {
+						if (!_iteratorNormalCompletion5 && _iterator5.return) {
+							_iterator5.return();
+						}
+					} finally {
+						if (_didIteratorError5) {
+							throw _iteratorError5;
+						}
+					}
+				}
+
+				return res;
+			}
+
+			/**
+	   * Return true if the date is an occurrence
+	   *
+	   * This method will attempt to determine the result programmatically.
+	   * However depending on the BYxxx rule parts that have been set, it might
+	   * not always be possible. As a last resort, this method will loop
+	   * through all occurrences until date. This will incur some performance
+	   * penalty.
+	   *
+	   * @param {Date|string} date
+	   * @return {boolean}
+	   */
+
+		}, {
+			key: "occursAt",
+			value: function occursAt(date) {
+				date = RRule.parseDate(date);
+				var timestamp = date.getTime();
+
+				// Check whether the date is in the cache
+				// (whether the cache is complete or not)
+				if (~this._cache.indexOf(date)) return true;
+
+				// If the cache is complete and doesn't contain the date
+				else if (this._total !== null) return false;
+
+				// Check if date is within start and until
+				if (timestamp < this._dtstart.getTime() || this._until && timestamp > this._until.getTime()) return false;
+
+				// Check against the BYxxx rules (except BYSETPOS)
+				if (this._byhour && !~this._byhour.indexOf(format(date, "G") | 0)) return false;
+
+				if (this._byminute && !~this._byminute.indexOf(format(date, "i") | 0)) return false;
+
+				if (this._bysecond && !~this._bysecond.indexOf(format(date, "s") | 0)) return false;
+
+				// Create mask variable
+
+				var _formatDate$split$map = format(date, "Y n j z N").split(" ").map(function (n) {
+					return n | 0;
+				}),
+				    _formatDate$split$map2 = slicedToArray(_formatDate$split$map, 5),
+				    year = _formatDate$split$map2[0],
+				    month = _formatDate$split$map2[1],
+				    day = _formatDate$split$map2[2],
+				    yearDay = _formatDate$split$map2[3],
+				    weekday = _formatDate$split$map2[4];
+
+				var masks = {};
+
+				masks["weekdayOf1stYearDay"] = format(new Date(year + "-01-01 00:00:00"), "N");
+
+				masks["yearDayToWeekday"] = RRule.WEEKDAY_MASK.slice(masks["weekdayOf1stYearDay"] - 1);
+
+				if (isLeapYear(year)) {
+					masks["yearLen"] = 366;
+					masks["lastDayOfMonth"] = RRule.LAST_DAY_OF_MONTH_366;
+				} else {
+					masks["yearLen"] = 365;
+					masks["lastDayOfMonth"] = RRule.LAST_DAY_OF_MONTH;
+				}
+
+				var monthLen = masks["lastDayOfMonth"][month] - masks["lastDayOfMonth"][month - 1];
+
+				if (this._bymonth && !~this._bymonth.indexOf(month)) return false;
+
+				if (this._bymonthday || this._bymonthdayNegative) {
+					var monthDayNegative = -1 * (monthLen - day + 1);
+
+					if (!~this._bymonthday.indexOf(day) && !~this._bymonthdayNegative.indexOf(monthDayNegative)) return false;
+				}
+
+				if (this._byyearday) {
+					// Caution here, yearDay starts from 0
+					var yearDayNegative = -1 * (masks["yearLen"] - yearDay);
+
+					if (!~this._byyearday.indexOf(yearDay + 1) && !~this._byyearday.indexOf(yearDayNegative)) return false;
+				}
+
+				if (this._byweekday || this._byweekdayNth) {
+					this._buildNthWeekdayMask(year, month, day, masks);
+
+					if (!~this._byweekday.indexOf(weekday) && !~masks["yearDayIsNthWeekday"].indexOf(yearDay)) return false;
+				}
+
+				if (this._byweekno) {
+					this._buildWeekNoMask(year, month, day, masks);
+
+					if (!~masks["yearDayIsInWeekNo"].indexOf(yearDay)) return false;
+				}
+
+				// Now we've exhausted all the BYxxx rules (except BYSETPOS), we still
+				// need to consider FREQUENCY and INTERVAL.
+
+				var _formatDate$split$map3 = format(this._dtstart, "Y-m-d").split("-").map(function (n) {
+					return n | 0;
+				}),
+				    _formatDate$split$map4 = slicedToArray(_formatDate$split$map3, 2),
+				    startYear = _formatDate$split$map4[0],
+				    startMonth /*, startDay*/ = _formatDate$split$map4[1];
+
+				switch (this._freq) {
+					case RRule.YEARLY:
+						if ((year - startYear) % this._interval !== 0) return false;
+						break;
+
+					case RRule.MONTHLY:
+						{
+							// We need to count the number of months elapsed
+							var diff = 12 - startMonth + 12 * (year - startYear - 1) + month;
+
+							if (diff % this._interval !== 0) return false;
+							break;
+						}
+
+					case RRule.WEEKLY:
+						{
+							// Count the number of days and divide by 7 to get the number of
+							// weeks. We add some days to align DTSTART with WKST.
+							var _diff = dateDiff(date, this._dtstart);
+							_diff = (_diff.days + pymod((format(this._dtstart, "N") | 0) - this._wkst, 7)) / 7 | 0;
+
+							if (_diff % this._interval !== 0) return false;
+							break;
+						}
+
+					case RRule.DAILY:
+						{
+							// Count the number of days
+							var _diff2 = dateDiff(date, this._dtstart);
+							if (_diff2.days % this._interval !== 0) return false;
+							break;
+						}
+
+					case RRule.HOURLY:
+						{
+							var _diff3 = dateDiff(date, this._dtstart);
+							_diff3 = _diff3.hours + _diff3.days * 24;
+							if (_diff3 % this._interval !== 0) return false;
+							break;
+						}
+
+					case RRule.MINUTELY:
+						{
+							var _diff4 = dateDiff(date, this._dtstart);
+							_diff4 = _diff4.minutes + _diff4.hours * 60 + _diff4.days * 1440;
+							if (_diff4 % this._interval !== 0) return false;
+							break;
+						}
+
+					case RRule.SECONDLY:
+						{
+							var _diff5 = dateDiff(date, this._dtstart);
+							// XXX doesn't count for leap seconds (should it?)
+							_diff5 = _diff5.seconds + _diff5.minutes * 60 + _diff5.hours * 3600 + _diff5.days * 86400;
+							if (_diff5 % this._interval !== 0) return false;
+							break;
+						}
+
+					default:
+						throw new Error("Invalid frequency: " + this._freq);
+				}
+
+				// Now we are left with 2 rules: BYSETPOS and COUNT
+				//
+				// - I think BYSETPOS *could* be determined without looping by
+				// considering the current set, calculating all the occurrences of the
+				// current set and determining the position of $date in the result set.
+				// However I'm not convinced it's worth it.
+				//
+				// - I don't see any way to determine COUNT programmatically, because
+				// occurrences might sometimes be dropped (e.g. a 29 Feb on a normal
+				// year, or during the switch to DST) and not counted in the final set.
+
+				if (!this._count && !this._bysetpos) return true;
+
+				// As a fallback we have to loop :(
+				var _iteratorNormalCompletion6 = true;
+				var _didIteratorError6 = false;
+				var _iteratorError6 = undefined;
+
+				try {
+					for (var _iterator6 = this[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
+						var occurrence = _step6.value;
+
+						if (occurrence.getTime() === date.getTime()) return true;
+
+						if (occurrence.getTime() > date.getTime()) break;
+					}
+
+					// If the loop came up short
+				} catch (err) {
+					_didIteratorError6 = true;
+					_iteratorError6 = err;
+				} finally {
+					try {
+						if (!_iteratorNormalCompletion6 && _iterator6.return) {
+							_iterator6.return();
+						}
+					} finally {
+						if (_didIteratorError6) {
+							throw _iteratorError6;
+						}
+					}
+				}
+
+				return false;
+			}
 
 			// Internal Functions
 			// =========================================================================
@@ -1032,11 +1601,97 @@
 	   */
 
 		}, {
+			key: "_getDaySet",
+
+
+			/**
+	   * Return an array of days of the year (numbered from 0 to 365) of the
+	   * current timeframe (year, month, week, day) containing the current date.
+	   *
+	   * @param {number} year
+	   * @param {number} month
+	   * @param {number} day
+	   * @param {Array} masks
+	   * @return {Array}
+	   * @private
+	   */
+			value: function _getDaySet(year, month, day, masks) {
+				switch (this._freq) {
+					case RRule.YEARLY:
+						return range(0, masks["yearLen"] - 1);
+
+					case RRule.MONTHLY:
+						{
+							var start = masks["lastDayOfMonth"][month - 1],
+							    stop = masks["lastDayOfMonth"][month];
+
+							return range(start, stop - 1);
+						}
+
+					case RRule.WEEKLY:
+						{
+							// On first iteration, the first week will not be complete.
+							// We don't backtrack to the first day of the week, to avoid
+							// crossing year boundary in reverse (i.e. if the week started
+							// during the previous year), because that would generate
+							// negative indexes (which would not work with the masks).
+							var set$$1 = [];
+							var _i9 = format(new Date(year, month, day, 0, 0, 0), "z") | 0;
+
+							for (var j = 0; j < 7; ++j) {
+								set$$1.push(_i9);
+								++_i9;
+								if (masks["yearDayToWeekday"][_i9] === this._wkst) break;
+							}
+
+							return set$$1;
+						}
+
+					case RRule.DAILY:
+					case RRule.HOURLY:
+					case RRule.MINUTELY:
+					case RRule.SECONDLY:
+						var i = format(new Date(year, month, day, 0, 0, 0), "z") | 0;
+						return [i];
+				}
+			}
+
+			// TODO: https://github.com/rlanvin/php-rrule/blob/master/src/RRule.php#L1216
+
+			// Constants
+			// =========================================================================
+
+			// Every mask is 7 days longer to handle cross-year weekly periods
+
+		}, {
 			key: "rule",
 			get: function get$$1() {
 				return this._rule;
 			}
 		}], [{
+			key: "createFromRfcString",
+			value: function createFromRfcString(string) {
+				var forceRSet = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+
+				var cls = RSet;
+
+				if (!forceRSet) {
+					// Try to detect if we have an RRule or a Set
+					var upperCasedString = string.toUpperCase();
+					var nbRRule = upperCasedString.split("RRULE").length - 1;
+
+					if (nbRRule === 0) cls = RRule;else if (nbRRule > 1) cls = RSet;else {
+						cls = RRule;
+
+						if (!~upperCasedString.indexOf("EXDATE") || !~upperCasedString.indexOf("RDATE") || !~upperCasedString.indexOf("EXRULE")) {
+							cls = RSet;
+						}
+					}
+				}
+
+				return new cls(string);
+			}
+		}, {
 			key: "parseDate",
 			value: function parseDate(rawDate) {
 				var date = new Date(rawDate);
@@ -1044,6 +1699,75 @@
 				if (isNaN(date.getTime())) throw new Error("Unable to parse date: " + rawDate);
 
 				return new Date(date.toUTCString());
+			}
+		}, {
+			key: "MONTH_MASK",
+			get: function get$$1() {
+				return [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 1, 1, 1, 1, 1, 1, 1];
+			}
+		}, {
+			key: "MONTH_MASK_366",
+			get: function get$$1() {
+				return [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 1, 1, 1, 1, 1, 1, 1];
+			}
+		}, {
+			key: "MONTHDAY_MASK",
+			get: function get$$1() {
+				return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7];
+			}
+		}, {
+			key: "MONTHDAY_MASK_366",
+			get: function get$$1() {
+				return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7];
+			}
+		}, {
+			key: "NEGATIVE_MONTHDAY_MASK",
+			get: function get$$1() {
+				return [-31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25];
+			}
+		}, {
+			key: "NEGATIVE_MONTHDAY_MASK_366",
+			get: function get$$1() {
+				return [-31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -31, -30, -29, -28, -27, -26, -25];
+			}
+		}, {
+			key: "WEEKDAY_MASK",
+			get: function get$$1() {
+				return [1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7];
+			}
+		}, {
+			key: "LAST_DAY_OF_MONTH",
+			get: function get$$1() {
+				return [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
+			}
+		}, {
+			key: "LAST_DAY_OF_MONTH_366",
+			get: function get$$1() {
+				return [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366];
+			}
+
+			/**
+	   * Maximum number of cycles after which a calendar repeats itself. This
+	   * is used to detect infinite loop: if no occurrence has been found
+	   * after this numbers of cycles, we can abort.
+	   *
+	   * The Gregorian calendar cycle repeat completely every 400 years
+	   * (146,097 days or 20,871 weeks).
+	   * A smaller cycle would be 28 years (1,461 weeks), but it only works
+	   * if there is no dropped leap year in between.
+	   * 2100 will be a dropped leap year, but I'm going to assume it's not
+	   * going to be a problem anytime soon, so at the moment I use the 28 years
+	   * cycle.
+	   *
+	   * @type {Object}
+	   */
+
+		}, {
+			key: "REPEAT_CYCLES",
+			get: function get$$1() {
+				var _ref;
+
+				return _ref = {}, defineProperty(_ref, RRule.YEARLY, 28), defineProperty(_ref, RRule.MONTHLY, 336), defineProperty(_ref, RRule.WEEKLY, 1461), defineProperty(_ref, RRule.DAILY, 10227), defineProperty(_ref, RRule.HOURLY, 24), defineProperty(_ref, RRule.MINUTELY, 1440), defineProperty(_ref, RRule.SECONDLY, 86400), _ref;
 			}
 		}]);
 		return RRule;
