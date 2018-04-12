@@ -741,7 +741,7 @@ export default class RRule {
 					value = Object.keys(RRule)[index];
 			}
 			
-			if (value) {
+			if (value !== null) {
 				if (Array.isArray(value))
 					value = value.join(",");
 				
