@@ -1,4 +1,6 @@
 const eslint = require("rollup-plugin-eslint")
+	, nodeResolve = require("rollup-plugin-node-resolve")
+	, commonJs = require("rollup-plugin-commonjs")
 	, babel = require("rollup-plugin-babel");
 
 export default {
@@ -28,6 +30,17 @@ export default {
 				browser: true,
 				es6: true,
 			},
+		}),
+		
+		nodeResolve({
+			module:  true,
+			jsnext:  true,
+			main:    true,
+			browser: true,
+		}),
+		
+		commonJs({
+			include: "node_modules/**",
 		}),
 		
 		babel({

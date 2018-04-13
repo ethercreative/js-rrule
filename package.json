@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Lightweight and fast recurring dates library for JS (RFC 5545)",
   "main": "./dist/index.js",
-  "jsnext:main": "./src/index.js",
+  "jsnext:main": "./src/main.js",
   "repository": "https://github.com/ethercreative/js-rrule",
   "author": "Tam <hi@tam.sx>",
   "license": "MIT",
@@ -17,9 +17,12 @@
     "babel-plugin-syntax-dynamic-import": "^6.18.0",
     "babel-plugin-transform-class-properties": "^6.24.1",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-polyfill": "^6.26.0",
     "babel-preset-env": "^1.6.1",
     "rollup": "^0.57.1",
     "rollup-plugin-babel": "^3.0.3",
-    "rollup-plugin-eslint": "^4.0.0"
+    "rollup-plugin-commonjs": "^9.1.0",
+    "rollup-plugin-eslint": "^4.0.0",
+    "rollup-plugin-node-resolve": "^3.3.0"
   }
 }

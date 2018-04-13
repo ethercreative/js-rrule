@@ -1,10 +1,11 @@
-import notEmpty from "./_helpers/notEmpty";
-import formatDate from "./_helpers/formatDate";
-import pymod from "./_helpers/pymod";
-import isLeapYear from "./_helpers/isLeapYear";
-import RSet from "./RSet";
-import dateDiff from "./_helpers/dateDiff";
-import range from "./_helpers/range";
+import notEmpty from "./_helpers/notEmpty.js";
+import formatDate from "./_helpers/formatDate.js";
+import pymod from "./_helpers/pymod.js";
+import isLeapYear from "./_helpers/isLeapYear.js";
+import RSet from "./RSet.js";
+import dateDiff from "./_helpers/dateDiff.js";
+import range from "./_helpers/range.js";
+import strToTime from "./_helpers/strToTime.js";
 
 /**
  * Implementation of RRULE as defined by RFC 5545 (iCalendar).
@@ -73,52 +74,6 @@ export default class RRule {
 		};
 	};
 	
-	/**
-	 * @type {Object} Original rule
-	 * @private
-	 */
-	_rule = {
-		DTSTART:    null,
-		FREQ:       null,
-		UNTIL:      null,
-		COUNT:      null,
-		INTERVAL:   1,
-		BYSECOND:   null,
-		BYMINUTE:   null,
-		BYHOUR:     null,
-		BYDAY:      null,
-		BYMONTHDAY: null,
-		BYYEARDAY:  null,
-		BYWEEKNO:   null,
-		BYMONTH:    null,
-		BYSETPOS:   null,
-		WKST:       "MO",
-	};
-	
-	// Parsed and validated values
-	_dtstart = null;
-	_freq = null;
-	_until = null;
-	_count = null;
-	_interval = null;
-	_bysecond = null;
-	_byminute = null;
-	_byhour = null;
-	_byweekday = null;
-	_byweekdayNth = null;
-	_bymonthday = null;
-	_bymonthdayNegative = null;
-	_byyearday = null;
-	_byweekno = null;
-	_bymonth = null;
-	_bysetpos = null;
-	_wkst = null;
-	_timeset = null;
-	
-	// Cache variables
-	_total = null;
-	_cache = [];
-	
 	// Public Functions
 	// =========================================================================
 	
@@ -132,6 +87,52 @@ export default class RRule {
 	 * @param {Date=} dtstart - The start date
 	 */
 	constructor (parts, dtstart = null) {
+		
+		/**
+		 * @type {Object} Original rule
+		 * @private
+		 */
+		this._rule = {
+			DTSTART:    null,
+			FREQ:       null,
+			UNTIL:      null,
+			COUNT:      null,
+			INTERVAL:   1,
+			BYSECOND:   null,
+			BYMINUTE:   null,
+			BYHOUR:     null,
+			BYDAY:      null,
+			BYMONTHDAY: null,
+			BYYEARDAY:  null,
+			BYWEEKNO:   null,
+			BYMONTH:    null,
+			BYSETPOS:   null,
+			WKST:       "MO",
+		};
+		
+		// Parsed and validated values
+		this._dtstart = null;
+		this._freq = null;
+		this._until = null;
+		this._count = null;
+		this._interval = null;
+		this._bysecond = null;
+		this._byminute = null;
+		this._byhour = null;
+		this._byweekday = null;
+		this._byweekdayNth = null;
+		this._bymonthday = null;
+		this._bymonthdayNegative = null;
+		this._byyearday = null;
+		this._byweekno = null;
+		this._bymonth = null;
+		this._bysetpos = null;
+		this._wkst = null;
+		this._timeset = null;
+		
+		// Cache variables
+		this._total = null;
+		this._cache = [];
 		
 		if (typeof parts === "string") {
 			// TODO: Parse string -> RfcParser::parseRRule
@@ -160,7 +161,7 @@ export default class RRule {
 		// ---------------------------------------------------------------------
 		
 		const partKeys = Object.keys(parts);
-		const invalidKeys = Object.keys(this._rule).filter(i => ~partKeys.indexOf(i));
+		const invalidKeys = partKeys.filter(i => !~Object.keys(this._rule).indexOf(i));
 		
 		if (invalidKeys.length)
 			throw new Error(
@@ -219,7 +220,7 @@ export default class RRule {
 		// INTERVAL
 		// ---------------------------------------------------------------------
 		
-		if (!Number.isInteger(+parts.INTERVAL) || parts.INTERVAL|0 < 1)
+		if (!Number.isInteger(+parts.INTERVAL) || (parts.INTERVAL|0) < 1)
 			throw new Error(
 				"The INTERVAL rule part must be a positive integer (> 0)"
 			);
@@ -572,7 +573,7 @@ export default class RRule {
 			this._byhour.sort((a, b) => a - b);
 		}
 		
-		else if (this._freq === RRule.HOURLY) {
+		else if (this._freq < RRule.HOURLY) {
 			this._byhour = [formatDate(this._dtstart, "G")|0];
 		}
 		
@@ -605,7 +606,7 @@ export default class RRule {
 			this._byminute.sort((a, b) => a - b);
 		}
 		
-		else if (this._freq === RRule.MINUTELY) {
+		else if (this._freq < RRule.MINUTELY) {
 			this._byminute = [formatDate(this._dtstart, "i")|0];
 		}
 		
@@ -642,7 +643,7 @@ export default class RRule {
 			this._bysecond.sort((a, b) => a - b);
 		}
 		
-		else if (this._freq === RRule.SECONDLY) {
+		else if (this._freq < RRule.SECONDLY) {
 			this._bysecond = [formatDate(this._dtstart, "s")|0];
 		}
 		
@@ -813,14 +814,14 @@ export default class RRule {
 	 *
 	 * @return {boolean}
 	 */
-	isFinite = () => !!(this._count || this._until);
+	isFinite () { return !!(this._count || this._until); }
 	
 	/**
 	 * Returns true if the RRule has no end condition (infinite)
 	 *
 	 * @return {boolean}
 	 */
-	isInfinite = () => !this._count && !this._until;
+	isInfinite () { return !this._count && !this._until; }
 	
 	/**
 	 * Return all the occurrences in an array of Date()'s
@@ -1121,11 +1122,13 @@ export default class RRule {
 	 * @return {Date}
 	 */
 	static parseDate (rawDate) {
+		// const date = new Date(strToTime(rawDate));
 		const date = new Date(rawDate);
 		
 		if (isNaN(date.getTime()))
 			throw new Error("Unable to parse date: " + rawDate);
 		
+		// FIXME: This DOESN'T convert our date to UTC :(
 		return new Date(date.toUTCString());
 	}
 	
@@ -1411,8 +1414,9 @@ export default class RRule {
 			case RRule.HOURLY: {
 				const set = [];
 				for (const minute of this._byminute)
-					// Should we use another type?
-					set.push([hour, minute, second]);
+					for (const second of this._bysecond)
+						// Should we use another type?
+						set.push([hour, minute, second]);
 				// Sort?
 				return set;
 			}
@@ -1505,20 +1509,29 @@ export default class RRule {
 			useCache = true,
 			total = 0;
 		
+		let i1 = 0,
+			i2 = 0,
+			i3 = 0,
+			i4 = 0;
+		
+		loop:
 		while (true) {
 			
 			// Go through the cache first
 			if (useCache) {
-				for (const occurrence in this._cache) {
+				for (; i1 < this._cache.length; ++i1) {
+					const occurrence = this._cache[i1];
 					dtStart = occurrence;
 					++total.total;
+					console.log("CACHE");
 					yield new Date(occurrence.getTime());
+					continue loop;
 				}
 				
 				useCache = false;
 				
 				// If the cache has been used up and we know there is nothing else...
-				if (total.total === this._total)
+				if (total === this._total)
 					return;
 				
 				if (dtStart) {
@@ -1614,7 +1627,7 @@ export default class RRule {
 					// will allow fast date operations without relying on
 					// Date functions.
 					if (
-						!masks.length
+						!masks
 						|| masks["year"] !== year
 						|| masks["month"] !== month
 					) {
@@ -1761,7 +1774,8 @@ export default class RRule {
 				// At the same time, we check the end condition and return
 				// null if we need to stop.
 				if (this._bysetpos && timeSet.length) {
-					for (const occurrence of daySet) {
+					for (; i2 < daySet.length; ++i2) {
+						const occurrence = daySet[i2];
 						// Consider end conditions
 						if (this._until && occurrence.getTime() > this._until.getTime()) {
 							this._total = total;
@@ -1772,14 +1786,18 @@ export default class RRule {
 						if (occurrence.getTime() >= dtStart.getTime()) {
 							++total;
 							this._cache.push(occurrence);
+							console.log("BYSETPOS");
 							yield new Date(occurrence.getTime());
+							continue loop;
 						}
 					}
 				}
 				
 				// Normal loop, without BYSETPOS
 				else {
-					for (const yearDay of daySet) {
+					for (; i3 < daySet.length; ++i3) {
+						const yearDay = daySet[i3];
+						
 						const occurrence = new Date(
 							year,
 							0,
@@ -1789,7 +1807,8 @@ export default class RRule {
 							0
 						);
 						
-						for (let time of timeSet) {
+						for (; i4 < timeSet.length; ++i4) {
+							const time = timeSet[i4];
 							occurrence.setHours(time[0]);
 							occurrence.setMinutes(time[0]);
 							occurrence.setSeconds(time[0]);
@@ -1804,7 +1823,9 @@ export default class RRule {
 							if (occurrence.getTime() >= dtStart.getTime()) {
 								++total;
 								this._cache.push(occurrence);
+								console.log("NO BYSETPOS");
 								yield new Date(occurrence.getTime());
+								continue loop;
 							}
 						}
 					}
