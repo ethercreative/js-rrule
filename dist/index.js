@@ -1078,21 +1078,21 @@
 				var _iteratorError = undefined;
 
 				try {
-					for (var _iterator = this._byHour[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+					for (var _iterator = this._byhour[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
 						var hour = _step.value;
 						var _iteratorNormalCompletion2 = true;
 						var _didIteratorError2 = false;
 						var _iteratorError2 = undefined;
 
 						try {
-							for (var _iterator2 = this._byMinute[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+							for (var _iterator2 = this._byminute[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
 								var minute = _step2.value;
 								var _iteratorNormalCompletion3 = true;
 								var _didIteratorError3 = false;
 								var _iteratorError3 = undefined;
 
 								try {
-									for (var _iterator3 = this._bySecond[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+									for (var _iterator3 = this._bysecond[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
 										var second = _step3.value;
 
 										this._timeset.push([hour, minute, second]);
@@ -1212,7 +1212,7 @@
 						if (index > -1) value = Object.keys(RRule)[index];
 					}
 
-					if (value) {
+					if (value !== null) {
 						if (Array.isArray(value)) value = value.join(",");
 
 						parts.push((key + "=" + value).toUpperCase().replace(/ /g, ""));
@@ -1636,7 +1636,7 @@
 							// during the previous year), because that would generate
 							// negative indexes (which would not work with the masks).
 							var set$$1 = [];
-							var _i9 = format(new Date(year, month, day, 0, 0, 0), "z") | 0;
+							var _i9 = format(new Date(year, month - 1, day, 0, 0, 0), "z") | 0;
 
 							for (var j = 0; j < 7; ++j) {
 								set$$1.push(_i9);
@@ -1651,12 +1651,1302 @@
 					case RRule.HOURLY:
 					case RRule.MINUTELY:
 					case RRule.SECONDLY:
-						var i = format(new Date(year, month, day, 0, 0, 0), "z") | 0;
+						var i = format(new Date(year, month - 1, day, 0, 0, 0), "z") | 0;
 						return [i];
 				}
 			}
 
-			// TODO: https://github.com/rlanvin/php-rrule/blob/master/src/RRule.php#L1216
+			/**
+	   * Calculate the year days corresponding to each Nth weekday (in BYDAY part)
+	   *
+	   * For example, in Jan 1998, in a MONTHLY interval, "1SU,-1SU" (first Sunday
+	   * and last Sunday) would be transformed into [3=>true,24=>true] because
+	   * the first Sunday of Jan 1998 is yearday 3 (counting from 0) and the
+	   * last Sunday of Jan 1998 is yearday 24 (counting from 0).
+	   *
+	   * @param {number} year
+	   * @param {number} month
+	   * @param {number} day
+	   * @param {Array} masks
+	   * @private
+	   */
+
+		}, {
+			key: "_buildNthWeekdayMask",
+			value: function _buildNthWeekdayMask(year, month, day, masks) {
+				masks["yearDayIsNthWeekday"] = [];
+
+				if (this._byweekdayNth) {
+					var ranges = [];
+
+					if (this._freq === RRule.YEARLY) {
+						if (this._bymonth) {
+							var _iteratorNormalCompletion7 = true;
+							var _didIteratorError7 = false;
+							var _iteratorError7 = undefined;
+
+							try {
+								for (var _iterator7 = this._bymonth[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
+									var byMonth = _step7.value;
+
+									ranges.push([masks["lastDayOfMonth"][byMonth - 1], masks["lastDayOfMonth"][byMonth] - 1]);
+								}
+							} catch (err) {
+								_didIteratorError7 = true;
+								_iteratorError7 = err;
+							} finally {
+								try {
+									if (!_iteratorNormalCompletion7 && _iterator7.return) {
+										_iterator7.return();
+									}
+								} finally {
+									if (_didIteratorError7) {
+										throw _iteratorError7;
+									}
+								}
+							}
+						} else {
+							ranges = [[0, masks["yearLen"] - 1]];
+						}
+					} else if (this._freq === RRule.MONTHLY) {
+						ranges.push([masks["lastDayOfMonth"][month - 1], masks["lastDayOfMonth"][month] - 1]);
+					}
+
+					if (ranges.length) {
+						// Weekly frequency won't get here, so we don't need to worry
+						// about cross-year weekly periods.
+						var _iteratorNormalCompletion8 = true;
+						var _didIteratorError8 = false;
+						var _iteratorError8 = undefined;
+
+						try {
+							for (var _iterator8 = ranges[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
+								var _ref = _step8.value;
+
+								var _ref2 = slicedToArray(_ref, 2);
+
+								var first = _ref2[0];
+								var last = _ref2[1];
+								var _iteratorNormalCompletion9 = true;
+								var _didIteratorError9 = false;
+								var _iteratorError9 = undefined;
+
+								try {
+									for (var _iterator9 = this._byweekdayNth[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
+										var _ref3 = _step9.value;
+
+										var _ref4 = slicedToArray(_ref3, 2);
+
+										var weekday = _ref4[0];
+										var nth = _ref4[1];
+
+										var i = void 0;
+
+										if (nth < 0) {
+											i = last + (nth + 1) * 7;
+											i = i - pymod(masks["yearDayToWeekday"][i] - weekday, 7);
+										} else {
+											i = first + (nth - 1) * 7;
+											i = i + (7 - masks["yearDayToWeekDay"][i] + weekday) % 7;
+										}
+
+										if (i >= first && i <= last) {
+											masks["yearDayIsNthWeekday"][i] = true;
+										}
+									}
+								} catch (err) {
+									_didIteratorError9 = true;
+									_iteratorError9 = err;
+								} finally {
+									try {
+										if (!_iteratorNormalCompletion9 && _iterator9.return) {
+											_iterator9.return();
+										}
+									} finally {
+										if (_didIteratorError9) {
+											throw _iteratorError9;
+										}
+									}
+								}
+							}
+						} catch (err) {
+							_didIteratorError8 = true;
+							_iteratorError8 = err;
+						} finally {
+							try {
+								if (!_iteratorNormalCompletion8 && _iterator8.return) {
+									_iterator8.return();
+								}
+							} finally {
+								if (_didIteratorError8) {
+									throw _iteratorError8;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			/**
+	   * Calculate the year days corresponding to the week number (in the WEEKNO
+	   * part)
+	   *
+	   * Because weeks can cross year boundaries (that is, week #1 can start the
+	   * previous year, and week 52/53 can continue till the next year), the
+	   * algorithm is quite long.
+	   *
+	   * @param {number} year
+	   * @param {number} month
+	   * @param {number} day
+	   * @param {Array} masks
+	   * @private
+	   */
+
+		}, {
+			key: "_buildWeekNoMask",
+			value: function _buildWeekNoMask(year, month, day, masks) {
+				masks["yearDayIsInWeekNo"] = [];
+
+				// Calculate the index of the first WKST day of the year.
+				// 0 === the first day of the year in the WKST day
+				// (e.g. WKST is Monday & Jan 1st is a Monday)
+				// n === there is n days before the first WKST day of the year
+				// If n >= 4, this is the first day of the year (even though it started
+				// the year before)
+				var firstWKST = (7 - masks["weekdayOf1stYearDay"] + this._wkst) % 7;
+				var firstWKSTOffset = void 0,
+				    nbDays = void 0;
+
+				if (firstWKST >= 4) {
+					firstWKSTOffset = 0;
+
+					// Number of days in the year, plus the days we got from last year
+					nbDays = masks["yearLen"] + masks["weekdayOf1stYearDay"] - this._wkst;
+				} else {
+					firstWKSTOffset = firstWKST;
+
+					// Number of days in the year, minus the days we left in last year
+					nbDays = masks["yearLen"] - firstWKST;
+				}
+
+				var nbWeeks = (nbDays / 7 | 0) + (nbDays % 7 / 4 | 0);
+
+				// Now we know when the first week starts and the number of weeks of the
+				// year, we can generate a map of every year day that are in the weeks
+				// specified in BYWEEKNO
+				var _iteratorNormalCompletion10 = true;
+				var _didIteratorError10 = false;
+				var _iteratorError10 = undefined;
+
+				try {
+					for (var _iterator10 = this._byweekno[Symbol.iterator](), _step10; !(_iteratorNormalCompletion10 = (_step10 = _iterator10.next()).done); _iteratorNormalCompletion10 = true) {
+						var n = _step10.value;
+
+						if (n < 0) n = n + nbWeeks + 1;
+
+						if (n <= 0 || n > nbWeeks) continue;
+
+						var i = void 0;
+
+						if (n > 1) {
+							i = firstWKSTOffset + (n - 1) * 7;
+
+							// If week #1 started the previous year, realign the start of
+							// the week
+							if (firstWKSTOffset !== firstWKST) i = i - (7 - firstWKST);
+						} else {
+							i = firstWKSTOffset;
+						}
+
+						// Now add 7 days into the result set, stopping either at 7 or if we
+						// reach WKST before (in the case of a short first week of the year)
+						for (var _j = 0; _j < 7; ++_j) {
+							masks["yearDayIsInWeekNo"][i] = true;
+							++i;
+							if (masks["yearDayToWeekday"][i] === this._wkst) break;
+						}
+					}
+
+					// If we asked for week #1, it's possible that week #1 of the next year
+					// already started this year. Therefore we need to return also matching
+					// days of next year.
+				} catch (err) {
+					_didIteratorError10 = true;
+					_iteratorError10 = err;
+				} finally {
+					try {
+						if (!_iteratorNormalCompletion10 && _iterator10.return) {
+							_iterator10.return();
+						}
+					} finally {
+						if (_didIteratorError10) {
+							throw _iteratorError10;
+						}
+					}
+				}
+
+				if (~this._byweekno.indexOf(1)) {
+					// Check week number 1 of next year as well
+					// TODO: Check -numweeks for next year
+					var i = firstWKSTOffset + nbWeeks * 7;
+
+					if (firstWKSTOffset !== firstWKST) i = i - (7 - firstWKST);
+
+					if (i < masks["yearLen"]) {
+						// If the week starts in the next year, we don't care about it
+						for (var j = 0; j < 7; ++j) {
+							masks["yearDayIsInWeekNo"][i] = true;
+							++i;
+							if (masks["yearDayToWeekday"][i] === this._wkst) break;
+						}
+					}
+				}
+
+				if (firstWKSTOffset) {
+					// Check the last week number of last year as well.
+					// If firstWKSTOffset is 0, either the year start on week start or
+					// week #1 got days from last year, so there are no days from last
+					// years last week number in this year
+					var nbWeeksLastYear = void 0;
+
+					if (!~this._byweekno.indexOf(-1)) {
+						var weekdayOf1stYearDay = format(new Date(year - 1, 0, 1, 0, 0, 0), "N");
+						var lastYearLen = 365 + isLeapYear(year - 1) | 0;
+
+						var firstWKSTOffsetLastYear = (7 - weekdayOf1stYearDay + this._wkst) % 7;
+
+						if (firstWKSTOffsetLastYear >= 4) {
+							// firstWKSTOffsetLastYear = 0;
+							nbWeeksLastYear = 52 + (lastYearLen + (weekdayOf1stYearDay - this._wkst) % 7) % 7 / 4 | 0;
+						} else {
+							nbWeeksLastYear = 52 + (masks["yearLen"] - firstWKSTOffset) % 7 / 4 | 0;
+						}
+					} else {
+						nbWeeksLastYear = -1;
+					}
+
+					if (~this._byweekno.indexOf(nbWeeksLastYear)) for (var _i10 = 0; _i10 < firstWKSTOffset; ++_i10) {
+						masks["yearDayIsInWeekNo"][_i10] = true;
+					}
+				}
+			}
+
+			/**
+	   * Build an array of every time of the day that matches the BYxxx
+	   * time criteria.
+	   *
+	   * It will only process this._freq at one time. So:
+	   * - for HOURLY frequencies it builds the minutes and second of the given
+	   * hour
+	   * - for MINUTELY frequencies it builds the seconds of the given minute
+	   * - for SECONDLY frequencies, it returns an array with one element
+	   *
+	   * This method is called every time an increment of at least one hour is
+	   * made.
+	   *
+	   * @param {number} hour
+	   * @param {number} minute
+	   * @param {number} second
+	   * @return {Array}
+	   * @private
+	   */
+
+		}, {
+			key: "_getTimeSet",
+			value: function _getTimeSet(hour, minute, second) {
+				switch (this._freq) {
+					case RRule.HOURLY:
+						{
+							var set$$1 = [];
+							var _iteratorNormalCompletion11 = true;
+							var _didIteratorError11 = false;
+							var _iteratorError11 = undefined;
+
+							try {
+								for (var _iterator11 = this._byminute[Symbol.iterator](), _step11; !(_iteratorNormalCompletion11 = (_step11 = _iterator11.next()).done); _iteratorNormalCompletion11 = true) {
+									var _minute = _step11.value;
+
+									// Should we use another type?
+									set$$1.push([hour, _minute, second]);
+								} // Sort?
+							} catch (err) {
+								_didIteratorError11 = true;
+								_iteratorError11 = err;
+							} finally {
+								try {
+									if (!_iteratorNormalCompletion11 && _iterator11.return) {
+										_iterator11.return();
+									}
+								} finally {
+									if (_didIteratorError11) {
+										throw _iteratorError11;
+									}
+								}
+							}
+
+							return set$$1;
+						}
+
+					case RRule.MINUTELY:
+						{
+							var _set = [];
+							var _iteratorNormalCompletion12 = true;
+							var _didIteratorError12 = false;
+							var _iteratorError12 = undefined;
+
+							try {
+								for (var _iterator12 = this._bysecond[Symbol.iterator](), _step12; !(_iteratorNormalCompletion12 = (_step12 = _iterator12.next()).done); _iteratorNormalCompletion12 = true) {
+									var _second = _step12.value;
+
+									// Should we use another type?
+									_set.push([hour, _second, _second]);
+								} // Sort?
+							} catch (err) {
+								_didIteratorError12 = true;
+								_iteratorError12 = err;
+							} finally {
+								try {
+									if (!_iteratorNormalCompletion12 && _iterator12.return) {
+										_iterator12.return();
+									}
+								} finally {
+									if (_didIteratorError12) {
+										throw _iteratorError12;
+									}
+								}
+							}
+
+							return _set;
+						}
+
+					case RRule.SECONDLY:
+						return [[hour, minute, second]];
+
+					default:
+						throw new Error("getTimeSet called with an invalid FREQ");
+				}
+			}
+
+			// Iterator
+			// =========================================================================
+
+			/**
+	   * This is the main function; where all the magic happens!
+	   *
+	   * The main idea is brute force made fast by not relying on Date functions.
+	   *
+	   * There is on big loop that examines every interval of the given frequency
+	   * (so every day, week, month, or year), constructs an array of all the
+	   * year
+	   * days of the interval (for daily frequencies, the array only has one
+	   * element, for weekly 7, and so on), and then filters out any days that do
+	   * not match the BYxxx parts.
+	   *
+	   * The algorithm does not try to be *smart* in calculating the increment of
+	   * the loop. That is, for a rule like "every day in January for 10 years"
+	   * the algorithm will loop through every day of the year, each year,
+	   * generating some 3650 iterations (+ some to account for the leap years).
+	   * This is a bit counter-intuitive, as it is obvious that the loop could
+	   * skip all the days in February till December since they are never going
+	   * to match.
+	   *
+	   * Fortunately, this approach is still super fast because it doesn't rely
+	   * on
+	   * Date functions, and instead does all the operations manually, either
+	   * arithmetically or using arrays as converters.
+	   *
+	   * Another quirk of this approach is that because the granularity is by
+	   * day,
+	   * higher frequencies (hourly, minutely, and secondly) have to have their
+	   * own special loops within the main loop, making the whole thing quite
+	   * convoluted. Moreover, at such frequencies, the brute-force approach
+	   * really starts to suck. For example, a rule like "Every minute, every Jan
+	   * 1st between 10:00 and 10:59, for 10 years" requires a tremendous amount
+	   * of useless iterations to jump from Jan 1st 10:59 at year 1 to Jan 1st
+	   * 10:00 at year 2.
+	   *
+	   * In order to make a *smart jump*, we would have to have a way to
+	   * determine
+	   * the gap between the next occurrence arithmetically. I think that would
+	   * require us to analyze each BYxxx rule part that limit the set (see the
+	   * RFC, page 43) at the given frequency. For example, a YEARLY frequency
+	   * doesn't need *smart jump* at all; MONTHLY and WEEKLY frequencies only
+	   * need to check BYMONTH; a DAILY frequency needs to check BYMONTH,
+	   * BYMONTHDAY, BYDAY, and so on. The check probably has to be done in
+	   * reverse order, e.g. for DAILY frequencies attempt to jump to the next
+	   * weekday (BYDAY) or next month day (BYMONTHDAY) (I don't know yet which
+	   * one should be first), and then if that results in a change of month,
+	   * attempt to jump to the next BYMONTH, and so on.
+	   *
+	   * TODO(Tam): See if this can be refactored to not rely on the outer while
+	   * loop...
+	   *
+	   * @return {IterableIterator<*>}
+	   */
+
+		}, {
+			key: Symbol.iterator,
+			value: /*#__PURE__*/regeneratorRuntime.mark(function value() {
+				var year, month, day, hour, minute, second, daySet, masks, timeSet, dtStart, useCache, total, occurrence, tmp, _formatDate$split, _formatDate$split2, _formatDate$split3, _formatDate$split4, maxCycles, i, filteredSet, _iteratorNormalCompletion13, _didIteratorError13, _iteratorError13, _iterator13, _step13, yearDay, _filteredSet, _iteratorNormalCompletion14, _didIteratorError14, _iteratorError14, _iterator14, _step14, pos, n, div, mod, _yearDay, time, _tmp, _iteratorNormalCompletion15, _didIteratorError15, _iteratorError15, _iterator15, _step15, _occurrence, _iteratorNormalCompletion16, _didIteratorError16, _iteratorError16, _iterator16, _step16, _yearDay2, _occurrence2, _iteratorNormalCompletion17, _didIteratorError17, _iteratorError17, _iterator17, _step17, _time, daysIncrement, _div, found, j, _div2, _mod, _found, _j2, _div3, _mod2, _found2, _j3, _div4, _mod3, d, _formatDate$split5, _formatDate$split6;
+
+				return regeneratorRuntime.wrap(function value$(_context) {
+					while (1) {
+						switch (_context.prev = _context.next) {
+							case 0:
+								year = null, month = null, day = null, hour = null, minute = null, second = null, daySet = null, masks = null, timeSet = null, dtStart = null, useCache = true, total = 0;
+
+							case 1:
+
+								if (!useCache) {
+									_context.next = 16;
+									break;
+								}
+
+								_context.t0 = regeneratorRuntime.keys(this._cache);
+
+							case 4:
+								if ((_context.t1 = _context.t0()).done) {
+									_context.next = 12;
+									break;
+								}
+
+								occurrence = _context.t1.value;
+
+								dtStart = occurrence;
+								++total.total;
+								_context.next = 10;
+								return new Date(occurrence.getTime());
+
+							case 10:
+								_context.next = 4;
+								break;
+
+							case 12:
+
+								useCache = false;
+
+								// If the cache has been used up and we know there is nothing else...
+
+								if (!(total.total === this._total)) {
+									_context.next = 15;
+									break;
+								}
+
+								return _context.abrupt("return");
+
+							case 15:
+
+								if (dtStart) {
+									dtStart = new Date(dtStart.getTime());
+
+									// Skip the last occurrence of the cache
+									if (this._freq === RRule.SECONDLY) {
+										dtStart.setSeconds(dtStart.getSeconds() + this._interval);
+									} else {
+										dtStart.setSeconds(dtStart.getSeconds() + 1);
+									}
+								}
+
+							case 16:
+								if (!(this._count && total >= this._count)) {
+									_context.next = 18;
+									break;
+								}
+
+								return _context.abrupt("return");
+
+							case 18:
+
+								if (dtStart === null) {
+									dtStart = new Date(this._dtstart.getTime());
+								}
+
+								// Populate times
+								if (year === null) {
+									if (this._freq === RRule.WEEKLY) {
+										// We align the start date to WKST, so we can then simply loop
+										// by adding +7 days. The Python lib does some calculation magic
+										// at then end of the loop (when incrementing) to realign on
+										// first pass.
+										tmp = new Date(dtStart.getTime());
+
+										tmp.setDate(tmp.getDate() - pymod(format(dtStart, "N") - this._wkst, 7));
+
+										_formatDate$split = format(tmp, "Y n j G i s").split(" ");
+										_formatDate$split2 = slicedToArray(_formatDate$split, 6);
+										year = _formatDate$split2[0];
+										month = _formatDate$split2[1];
+										day = _formatDate$split2[2];
+										hour = _formatDate$split2[3];
+										minute = _formatDate$split2[4];
+										second = _formatDate$split2[5];
+									} else {
+										_formatDate$split3 = format(dtStart, "Y n j G i s").split(" ");
+										_formatDate$split4 = slicedToArray(_formatDate$split3, 6);
+										year = _formatDate$split4[0];
+										month = _formatDate$split4[1];
+										day = _formatDate$split4[2];
+										hour = _formatDate$split4[3];
+										minute = _formatDate$split4[4];
+										second = _formatDate$split4[5];
+									}
+
+									// Force back to ints (& remove leading zeros)
+									year = year | 0;
+									month = month | 0;
+									day = day | 0;
+									hour = hour | 0;
+									minute = minute | 0;
+									second = second | 0;
+								}
+
+								// Initialize the time set
+								if (timeSet === null) {
+									if (this._freq < RRule.HOURLY) {
+										// For daily, weekly, monthly, or yearly, we don't need to
+										// calculate  a new time set.
+										timeSet = this._timeset;
+									} else {
+										// Initialize empty if it's not going to occur on the
+										// first iteration
+										if (this._freq >= RRule.HOURLY && this._byhour && !~this._byhour.indexOf(hour) || this._freq >= RRule.MINUTELY && this._byminute && !~this._byminute.indexOf(minute) || this._freq >= RRule.SECONDLY && this._bysecond && !~this._bysecond.indexOf(second)) {
+											timeSet = [];
+										} else {
+											timeSet = this._getTimeSet(hour, minute, second);
+										}
+									}
+								}
+
+								maxCycles = RRule.REPEAT_CYCLES[this._freq <= RRule.DAILY ? this._freq : RRule.DAILY];
+								i = 0;
+
+							case 23:
+								if (!(i < maxCycles)) {
+									_context.next = 261;
+									break;
+								}
+
+								if (!(daySet === null)) {
+									_context.next = 94;
+									break;
+								}
+
+								// Rebuild the various masks and converters. These arrays
+								// will allow fast date operations without relying on
+								// Date functions.
+								if (!masks.length || masks["year"] !== year || masks["month"] !== month) {
+									masks = {
+										year: "",
+										month: ""
+									};
+
+									// Only if year has changed
+									// TODO(Tam): Won't this always be true?
+									if (masks["year"] !== year) {
+										masks["leapYear"] = isLeapYear(year);
+										masks["yearLen"] = 365 + masks["leapYear"] | 0;
+										masks["nextYearLen"] = 365 + isLeapYear(year + 1) | 0;
+										masks["weekdayOf1stYearDay"] = format(new Date(year, 0, 1, 0, 0, 0), "N");
+										masks["yearDayToWeekday"] = RRule.WEEKDAY_MASK.slice(masks["weekdayOf1stYearDay"] - 1);
+
+										if (masks["leapYear"]) {
+											masks["yearDayToMonth"] = RRule.MONTH_MASK_366;
+											masks["yearDayToMonthDay"] = RRule.MONTHDAY_MASK_366;
+											masks["yearDayToMonthDayNegative"] = RRule.NEGATIVE_MONTHDAY_MASK_366;
+											masks["lastDayOfMonth"] = RRule.LAST_DAY_OF_MONTH_366;
+										} else {
+											masks["yearDayToMonth"] = RRule.MONTH_MASK;
+											masks["yearDayToMonthDay"] = RRule.MONTHDAY_MASK;
+											masks["yearDayToMonthDayNegative"] = RRule.NEGATIVE_MONTHDAY_MASK;
+											masks["lastDayOfMonth"] = RRule.LAST_DAY_OF_MONTH;
+										}
+
+										if (this._byweekno) this._buildWeekNoMask(year, month, day, masks);
+									}
+
+									// Every time month or year changes
+									if (this._byweekdayNth) this._buildNthWeekdayMask(year, month, day, masks);
+
+									masks["year"] = year;
+									masks["month"] = month;
+								}
+
+								// Calculate the current set
+								daySet = this._getDaySet(year, month, day, masks);
+
+								filteredSet = [];
+
+								// Filter out the days based on the BYxxx rules
+
+								_iteratorNormalCompletion13 = true;
+								_didIteratorError13 = false;
+								_iteratorError13 = undefined;
+								_context.prev = 31;
+								_iterator13 = daySet[Symbol.iterator]();
+
+							case 33:
+								if (_iteratorNormalCompletion13 = (_step13 = _iterator13.next()).done) {
+									_context.next = 55;
+									break;
+								}
+
+								yearDay = _step13.value;
+
+								if (!(this._bymonth && !~this._bymonth.indexOf(masks["yearDayToMonth"][yearDay]))) {
+									_context.next = 37;
+									break;
+								}
+
+								return _context.abrupt("continue", 52);
+
+							case 37:
+								if (!(this._byweekno && masks["yearDayIsInWeekNo"][yearDay] === undefined)) {
+									_context.next = 39;
+									break;
+								}
+
+								return _context.abrupt("continue", 52);
+
+							case 39:
+								if (!this._byyearday) {
+									_context.next = 47;
+									break;
+								}
+
+								if (!(yearDay <= masks["yearLen"])) {
+									_context.next = 45;
+									break;
+								}
+
+								if (!(!~this._byyearday.indexOf(yearDay + 1) && !~this._byyearday.indexOf(-masks["yearLen"] + yearDay))) {
+									_context.next = 43;
+									break;
+								}
+
+								return _context.abrupt("continue", 52);
+
+							case 43:
+								_context.next = 47;
+								break;
+
+							case 45:
+								if (!(!~this._byyearday.indexOf(yearDay + 1 - masks["yearLen"]) && !~this._byyearday.indexOf(-masks["nextYearLen"] + yearDay - masks["yearLen"]))) {
+									_context.next = 47;
+									break;
+								}
+
+								return _context.abrupt("continue", 52);
+
+							case 47:
+								if (!((this._bymonthday || this._bymonthdayNegative) && !~this._bymonthday.indexOf(masks["yearDayToMonthDay"][yearDay]) && !~this._bymonthdayNegative.indexOf(masks["yearDayToMonthDayNegative"][yearDay]))) {
+									_context.next = 49;
+									break;
+								}
+
+								return _context.abrupt("continue", 52);
+
+							case 49:
+								if (!((this._byweekday || this._byweekdayNth) && !~this._byweekday.indexOf(masks["yearDayToWeekday"][yearDay]) && masks["yearDayIsNthWeekday"][yearDay] === undefined)) {
+									_context.next = 51;
+									break;
+								}
+
+								return _context.abrupt("continue", 52);
+
+							case 51:
+
+								filteredSet.push(yearDay);
+
+							case 52:
+								_iteratorNormalCompletion13 = true;
+								_context.next = 33;
+								break;
+
+							case 55:
+								_context.next = 61;
+								break;
+
+							case 57:
+								_context.prev = 57;
+								_context.t2 = _context["catch"](31);
+								_didIteratorError13 = true;
+								_iteratorError13 = _context.t2;
+
+							case 61:
+								_context.prev = 61;
+								_context.prev = 62;
+
+								if (!_iteratorNormalCompletion13 && _iterator13.return) {
+									_iterator13.return();
+								}
+
+							case 64:
+								_context.prev = 64;
+
+								if (!_didIteratorError13) {
+									_context.next = 67;
+									break;
+								}
+
+								throw _iteratorError13;
+
+							case 67:
+								return _context.finish(64);
+
+							case 68:
+								return _context.finish(61);
+
+							case 69:
+
+								daySet = filteredSet;
+
+								// If BYSETPOS is set, we need to expand the time set to
+								// filter by pos, so we'll make a special loop to return
+								// while generating
+
+								if (!(this._bysetpos && timeSet.length)) {
+									_context.next = 94;
+									break;
+								}
+
+								_filteredSet = {};
+								_iteratorNormalCompletion14 = true;
+								_didIteratorError14 = false;
+								_iteratorError14 = undefined;
+								_context.prev = 75;
+
+
+								for (_iterator14 = this._bysetpos[Symbol.iterator](); !(_iteratorNormalCompletion14 = (_step14 = _iterator14.next()).done); _iteratorNormalCompletion14 = true) {
+									pos = _step14.value;
+									n = timeSet.length;
+
+
+									if (pos < 0) pos = n * daySet.length + pos;else pos = pos - 1;
+
+									div = pos / n | 0, mod = pos % n; // timePos
+
+									if (daySet[div] !== undefined && timeSet[mod] !== undefined) {
+										_yearDay = daySet[div], time = timeSet[mod];
+
+										// Used as key to ensure uniqueness
+
+										_tmp = year + ":" + _yearDay + ":" + time[0] + ":" + time[1] + ":" + time[2];
+
+										if (_filteredSet[_tmp] === undefined) {
+											_filteredSet[_tmp] = new Date(year, 0, _yearDay, time[0], time[1], time[2]);
+										}
+									}
+								}
+
+								_context.next = 83;
+								break;
+
+							case 79:
+								_context.prev = 79;
+								_context.t3 = _context["catch"](75);
+								_didIteratorError14 = true;
+								_iteratorError14 = _context.t3;
+
+							case 83:
+								_context.prev = 83;
+								_context.prev = 84;
+
+								if (!_iteratorNormalCompletion14 && _iterator14.return) {
+									_iterator14.return();
+								}
+
+							case 86:
+								_context.prev = 86;
+
+								if (!_didIteratorError14) {
+									_context.next = 89;
+									break;
+								}
+
+								throw _iteratorError14;
+
+							case 89:
+								return _context.finish(86);
+
+							case 90:
+								return _context.finish(83);
+
+							case 91:
+								_filteredSet = Object.values(_filteredSet);
+								_filteredSet.sort(function (a, b) {
+									return a - b;
+								});
+								daySet = _filteredSet;
+
+							case 94:
+								if (!(this._bysetpos && timeSet.length)) {
+									_context.next = 129;
+									break;
+								}
+
+								_iteratorNormalCompletion15 = true;
+								_didIteratorError15 = false;
+								_iteratorError15 = undefined;
+								_context.prev = 98;
+								_iterator15 = daySet[Symbol.iterator]();
+
+							case 100:
+								if (_iteratorNormalCompletion15 = (_step15 = _iterator15.next()).done) {
+									_context.next = 113;
+									break;
+								}
+
+								_occurrence = _step15.value;
+
+								if (!(this._until && _occurrence.getTime() > this._until.getTime())) {
+									_context.next = 105;
+									break;
+								}
+
+								this._total = total;
+								return _context.abrupt("return");
+
+							case 105:
+								if (!(_occurrence.getTime() >= dtStart.getTime())) {
+									_context.next = 110;
+									break;
+								}
+
+								++total;
+								this._cache.push(_occurrence);
+								_context.next = 110;
+								return new Date(_occurrence.getTime());
+
+							case 110:
+								_iteratorNormalCompletion15 = true;
+								_context.next = 100;
+								break;
+
+							case 113:
+								_context.next = 119;
+								break;
+
+							case 115:
+								_context.prev = 115;
+								_context.t4 = _context["catch"](98);
+								_didIteratorError15 = true;
+								_iteratorError15 = _context.t4;
+
+							case 119:
+								_context.prev = 119;
+								_context.prev = 120;
+
+								if (!_iteratorNormalCompletion15 && _iterator15.return) {
+									_iterator15.return();
+								}
+
+							case 122:
+								_context.prev = 122;
+
+								if (!_didIteratorError15) {
+									_context.next = 125;
+									break;
+								}
+
+								throw _iteratorError15;
+
+							case 125:
+								return _context.finish(122);
+
+							case 126:
+								return _context.finish(119);
+
+							case 127:
+								_context.next = 189;
+								break;
+
+							case 129:
+								_iteratorNormalCompletion16 = true;
+								_didIteratorError16 = false;
+								_iteratorError16 = undefined;
+								_context.prev = 132;
+								_iterator16 = daySet[Symbol.iterator]();
+
+							case 134:
+								if (_iteratorNormalCompletion16 = (_step16 = _iterator16.next()).done) {
+									_context.next = 175;
+									break;
+								}
+
+								_yearDay2 = _step16.value;
+								_occurrence2 = new Date(year, 0, _yearDay2, 0, 0, 0);
+								_iteratorNormalCompletion17 = true;
+								_didIteratorError17 = false;
+								_iteratorError17 = undefined;
+								_context.prev = 140;
+								_iterator17 = timeSet[Symbol.iterator]();
+
+							case 142:
+								if (_iteratorNormalCompletion17 = (_step17 = _iterator17.next()).done) {
+									_context.next = 158;
+									break;
+								}
+
+								_time = _step17.value;
+
+								_occurrence2.setHours(_time[0]);
+								_occurrence2.setMinutes(_time[0]);
+								_occurrence2.setSeconds(_time[0]);
+
+								// Consider end conditions
+
+								if (!(this._until && _occurrence2.getTime() > this._until.getTime())) {
+									_context.next = 150;
+									break;
+								}
+
+								this._total = total;
+								return _context.abrupt("return");
+
+							case 150:
+								if (!(_occurrence2.getTime() >= dtStart.getTime())) {
+									_context.next = 155;
+									break;
+								}
+
+								++total;
+								this._cache.push(_occurrence2);
+								_context.next = 155;
+								return new Date(_occurrence2.getTime());
+
+							case 155:
+								_iteratorNormalCompletion17 = true;
+								_context.next = 142;
+								break;
+
+							case 158:
+								_context.next = 164;
+								break;
+
+							case 160:
+								_context.prev = 160;
+								_context.t5 = _context["catch"](140);
+								_didIteratorError17 = true;
+								_iteratorError17 = _context.t5;
+
+							case 164:
+								_context.prev = 164;
+								_context.prev = 165;
+
+								if (!_iteratorNormalCompletion17 && _iterator17.return) {
+									_iterator17.return();
+								}
+
+							case 167:
+								_context.prev = 167;
+
+								if (!_didIteratorError17) {
+									_context.next = 170;
+									break;
+								}
+
+								throw _iteratorError17;
+
+							case 170:
+								return _context.finish(167);
+
+							case 171:
+								return _context.finish(164);
+
+							case 172:
+								_iteratorNormalCompletion16 = true;
+								_context.next = 134;
+								break;
+
+							case 175:
+								_context.next = 181;
+								break;
+
+							case 177:
+								_context.prev = 177;
+								_context.t6 = _context["catch"](132);
+								_didIteratorError16 = true;
+								_iteratorError16 = _context.t6;
+
+							case 181:
+								_context.prev = 181;
+								_context.prev = 182;
+
+								if (!_iteratorNormalCompletion16 && _iterator16.return) {
+									_iterator16.return();
+								}
+
+							case 184:
+								_context.prev = 184;
+
+								if (!_didIteratorError16) {
+									_context.next = 187;
+									break;
+								}
+
+								throw _iteratorError16;
+
+							case 187:
+								return _context.finish(184);
+
+							case 188:
+								return _context.finish(181);
+
+							case 189:
+
+								// 3. Reset the loop to the next interval
+								daysIncrement = 0;
+								_context.t7 = this._freq;
+								_context.next = _context.t7 === RRule.YEARLY ? 193 : _context.t7 === RRule.MONTHLY ? 195 : _context.t7 === RRule.WEEKLY ? 198 : _context.t7 === RRule.DAILY ? 200 : _context.t7 === RRule.HOURLY ? 202 : _context.t7 === RRule.MINUTELY ? 220 : _context.t7 === RRule.SECONDLY ? 238 : 256;
+								break;
+
+							case 193:
+								// We don't care about month or day not existing, they
+								// are not used in the yearly frequency.
+								year += this._interval;
+								return _context.abrupt("break", 256);
+
+							case 195:
+								// We don't care about the day of the month not
+								// existing, it isn't used in the monthly frequency.
+								month += this._interval;
+
+								if (month > 12) {
+									_div = month / 12 | 0;
+
+									month = month % 12;
+									year += _div;
+
+									if (month === 0) {
+										month = 12;
+										year -= 1;
+									}
+								}
+								return _context.abrupt("break", 256);
+
+							case 198:
+								daysIncrement = this._interval * 7;
+								return _context.abrupt("break", 256);
+
+							case 200:
+								daysIncrement = this._interval;
+								return _context.abrupt("break", 256);
+
+							case 202:
+								if (!daySet || daySet.length === 0) {
+									// An empty set means that this day has been
+									// filtered out by one of the BYxxx rules. So there
+									// is no need to examine it any further, we know
+									// nothing is going to occur anyway. So we jump to
+									// an iteration right before the next day.
+									hour += (23 - hour) / this._interval * this._interval | 0;
+								}
+
+								found = false;
+								j = 0;
+
+							case 205:
+								if (!(j < RRule.REPEAT_CYCLES[RRule.HOURLY])) {
+									_context.next = 215;
+									break;
+								}
+
+								hour += this._interval;
+								_div2 = hour / 24 | 0, _mod = hour % 24;
+
+
+								if (_div2) {
+									hour = _mod;
+									daysIncrement += _div2;
+								}
+
+								if (!(!this._byhour || ~this._byhour.indexOf(hour))) {
+									_context.next = 212;
+									break;
+								}
+
+								found = true;
+								return _context.abrupt("break", 215);
+
+							case 212:
+								++j;
+								_context.next = 205;
+								break;
+
+							case 215:
+								if (found) {
+									_context.next = 218;
+									break;
+								}
+
+								this._total = total;
+								return _context.abrupt("return");
+
+							case 218:
+
+								timeSet = this._getTimeSet(hour, minute, second);
+								return _context.abrupt("break", 256);
+
+							case 220:
+								if (!daySet || !daySet.length) {
+									minute += ((1439 - hour * 60 * minute) / this._interval | 0) * this._interval;
+								}
+
+								_found = false;
+								_j2 = 0;
+
+							case 223:
+								if (!(_j2 < RRule.REPEAT_CYCLES[RRule.MINUTELY])) {
+									_context.next = 233;
+									break;
+								}
+
+								minute += this._interval;
+								_div3 = minute / 60 | 0, _mod2 = minute % 60;
+
+
+								if (_div3) {
+									minute = _mod2;
+									hour += _div3;
+
+									_div3 = hour / 24 | 0;
+									_mod2 = hour % 24;
+
+									if (_div3) {
+										hour = _mod2;
+										daysIncrement += _div3;
+									}
+								}
+
+								if (!((!this._byhour || ~this._byhour.indexOf(hour)) && (!this._byminute || ~this._byminute.indexOf(minute)))) {
+									_context.next = 230;
+									break;
+								}
+
+								_found = true;
+								return _context.abrupt("return");
+
+							case 230:
+								++_j2;
+								_context.next = 223;
+								break;
+
+							case 233:
+								if (_found) {
+									_context.next = 236;
+									break;
+								}
+
+								this._total = total;
+								return _context.abrupt("return");
+
+							case 236:
+
+								timeSet = this._getTimeSet(hour, minute, second);
+								return _context.abrupt("break", 256);
+
+							case 238:
+								if (!daySet || !daySet.length) {
+									second += (86399 - (hour * 3600 + minute * 60 + second)) / this._interval | 0;
+								}
+
+								_found2 = false;
+								_j3 = 0;
+
+							case 241:
+								if (!(_j3 < RRule.REPEAT_CYCLES[RRule.SECONDLY])) {
+									_context.next = 251;
+									break;
+								}
+
+								second += this._interval;
+
+								_div4 = second / 60 | 0, _mod3 = second % 60;
+
+
+								if (_div4) {
+									second = _mod3;
+									minute += _div4;
+
+									_div4 = minute / 60 | 0;
+									_mod3 = minute % 60;
+
+									if (_div4) {
+										minute = _mod3;
+										hour += _div4;
+
+										_div4 = hour / 24 | 0;
+										_mod3 = hour % 24;
+
+										if (_div4) {
+											hour = _mod3;
+											daysIncrement += _div4;
+										}
+									}
+								}
+
+								if (!(!this._byhour || ~this._byhour.indexOf(hour) || !this._byminute || ~this._byminute.indexOf(minute) || !this._bysecond || ~this._bysecond.indexOf(second))) {
+									_context.next = 248;
+									break;
+								}
+
+								_found2 = true;
+								return _context.abrupt("break", 251);
+
+							case 248:
+								++_j3;
+								_context.next = 241;
+								break;
+
+							case 251:
+								if (_found2) {
+									_context.next = 254;
+									break;
+								}
+
+								this._total = total;
+								return _context.abrupt("return");
+
+							case 254:
+
+								timeSet = this._getTimeSet(hour, minute, second);
+								return _context.abrupt("break", 256);
+
+							case 256:
+
+								// Here we take a little shortcut from the Python version by
+								// using Date()
+								if (daysIncrement) {
+									d = new Date(year, month - 1, day);
+
+									d.setDate(d.getDate() + daysIncrement);
+									_formatDate$split5 = format(d, "Y-n-j").split("-");
+									_formatDate$split6 = slicedToArray(_formatDate$split5, 3);
+									year = _formatDate$split6[0];
+									month = _formatDate$split6[1];
+									day = _formatDate$split6[2];
+								}
+
+								// Reset the loop
+								daySet = null;
+
+							case 258:
+								++i;
+								_context.next = 23;
+								break;
+
+							case 261:
+
+								this._total = total;
+								return _context.abrupt("return");
+
+							case 265:
+							case "end":
+								return _context.stop();
+						}
+					}
+				}, value, this, [[31, 57, 61, 69], [62,, 64, 68], [75, 79, 83, 91], [84,, 86, 90], [98, 115, 119, 127], [120,, 122, 126], [132, 177, 181, 189], [140, 160, 164, 172], [165,, 167, 171], [182,, 184, 188]]);
+			})
 
 			// Constants
 			// =========================================================================
@@ -1765,9 +3055,9 @@
 		}, {
 			key: "REPEAT_CYCLES",
 			get: function get$$1() {
-				var _ref;
+				var _ref5;
 
-				return _ref = {}, defineProperty(_ref, RRule.YEARLY, 28), defineProperty(_ref, RRule.MONTHLY, 336), defineProperty(_ref, RRule.WEEKLY, 1461), defineProperty(_ref, RRule.DAILY, 10227), defineProperty(_ref, RRule.HOURLY, 24), defineProperty(_ref, RRule.MINUTELY, 1440), defineProperty(_ref, RRule.SECONDLY, 86400), _ref;
+				return _ref5 = {}, defineProperty(_ref5, RRule.YEARLY, 28), defineProperty(_ref5, RRule.MONTHLY, 336), defineProperty(_ref5, RRule.WEEKLY, 1461), defineProperty(_ref5, RRule.DAILY, 10227), defineProperty(_ref5, RRule.HOURLY, 24), defineProperty(_ref5, RRule.MINUTELY, 1440), defineProperty(_ref5, RRule.SECONDLY, 86400), _ref5;
 			}
 		}]);
 		return RRule;

@@ -659,9 +659,9 @@ export default class RRule {
 			
 			this._timeset = [];
 			
-			for (const hour of this._byHour)
-				for (const minute of this._byMinute)
-					for (const second of this._bySecond)
+			for (const hour of this._byhour)
+				for (const minute of this._byminute)
+					for (const second of this._bysecond)
 						this._timeset.push([hour, minute, second]);
 		}
 		
@@ -1159,7 +1159,7 @@ export default class RRule {
 				// during the previous year), because that would generate
 				// negative indexes (which would not work with the masks).
 				const set = [];
-				let i = formatDate(new Date(year, month, day, 0, 0, 0), "z")|0;
+				let i = formatDate(new Date(year, month - 1, day, 0, 0, 0), "z")|0;
 				
 				for (let j = 0; j < 7; ++j) {
 					set.push(i);
@@ -1175,12 +1175,837 @@ export default class RRule {
 			case RRule.HOURLY:
 			case RRule.MINUTELY:
 			case RRule.SECONDLY:
-				let i = formatDate(new Date(year, month, day, 0, 0, 0), "z")|0;
+				let i = formatDate(new Date(year, month - 1, day, 0, 0, 0), "z")|0;
 				return [i];
 		}
 	}
 	
-	// TODO: https://github.com/rlanvin/php-rrule/blob/master/src/RRule.php#L1216
+	/**
+	 * Calculate the year days corresponding to each Nth weekday (in BYDAY part)
+	 *
+	 * For example, in Jan 1998, in a MONTHLY interval, "1SU,-1SU" (first Sunday
+	 * and last Sunday) would be transformed into [3=>true,24=>true] because
+	 * the first Sunday of Jan 1998 is yearday 3 (counting from 0) and the
+	 * last Sunday of Jan 1998 is yearday 24 (counting from 0).
+	 *
+	 * @param {number} year
+	 * @param {number} month
+	 * @param {number} day
+	 * @param {Array} masks
+	 * @private
+	 */
+	_buildNthWeekdayMask (year, month, day, masks)
+	{
+		masks["yearDayIsNthWeekday"] = [];
+		
+		if (this._byweekdayNth) {
+			let ranges = [];
+			
+			if (this._freq === RRule.YEARLY) {
+				if (this._bymonth) {
+					for (const byMonth of this._bymonth) {
+						ranges.push([
+							masks["lastDayOfMonth"][byMonth - 1],
+							masks["lastDayOfMonth"][byMonth] - 1,
+						]);
+					}
+				}
+				
+				else {
+					ranges = [[0, masks["yearLen"] - 1]];
+				}
+			}
+			
+			else if (this._freq === RRule.MONTHLY) {
+				ranges.push([
+					masks["lastDayOfMonth"][month - 1],
+					masks["lastDayOfMonth"][month] - 1,
+				]);
+			}
+			
+			if (ranges.length) {
+				// Weekly frequency won't get here, so we don't need to worry
+				// about cross-year weekly periods.
+				for (const [first, last] of ranges) {
+					for (const [weekday, nth] of this._byweekdayNth) {
+						let i;
+						
+						if (nth < 0) {
+							i = last + (nth + 1) * 7;
+							i = i - pymod(masks["yearDayToWeekday"][i] - weekday, 7);
+						}
+						
+						else {
+							i = first + (nth - 1) * 7;
+							i = i + (7 - masks["yearDayToWeekDay"][i] + weekday) % 7;
+						}
+						
+						if (i >= first && i <= last) {
+							masks["yearDayIsNthWeekday"][i] = true;
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Calculate the year days corresponding to the week number (in the WEEKNO
+	 * part)
+	 *
+	 * Because weeks can cross year boundaries (that is, week #1 can start the
+	 * previous year, and week 52/53 can continue till the next year), the
+	 * algorithm is quite long.
+	 *
+	 * @param {number} year
+	 * @param {number} month
+	 * @param {number} day
+	 * @param {Array} masks
+	 * @private
+	 */
+	_buildWeekNoMask (year, month, day, masks)
+	{
+		masks["yearDayIsInWeekNo"] = [];
+		
+		// Calculate the index of the first WKST day of the year.
+		// 0 === the first day of the year in the WKST day
+		// (e.g. WKST is Monday & Jan 1st is a Monday)
+		// n === there is n days before the first WKST day of the year
+		// If n >= 4, this is the first day of the year (even though it started
+		// the year before)
+		const firstWKST = (7 - masks["weekdayOf1stYearDay"] + this._wkst) % 7;
+		let firstWKSTOffset, nbDays;
+		
+		if (firstWKST >= 4) {
+			firstWKSTOffset = 0;
+			
+			// Number of days in the year, plus the days we got from last year
+			nbDays = masks["yearLen"] + masks["weekdayOf1stYearDay"] - this._wkst;
+		}
+		
+		else {
+			firstWKSTOffset = firstWKST;
+			
+			// Number of days in the year, minus the days we left in last year
+			nbDays = masks["yearLen"] - firstWKST;
+		}
+		
+		const nbWeeks = ((nbDays / 7)|0) + (((nbDays % 7) / 4)|0);
+		
+		// Now we know when the first week starts and the number of weeks of the
+		// year, we can generate a map of every year day that are in the weeks
+		// specified in BYWEEKNO
+		for (let n of this._byweekno) {
+			if (n < 0)
+				n = n + nbWeeks + 1;
+			
+			if (n <= 0 || n > nbWeeks)
+				continue;
+			
+			let i;
+			
+			if (n > 1) {
+				i = firstWKSTOffset + (n - 1) * 7;
+				
+				// If week #1 started the previous year, realign the start of
+				// the week
+				if (firstWKSTOffset !== firstWKST)
+					i = i - (7 - firstWKST);
+			}
+			
+			else {
+				i = firstWKSTOffset;
+			}
+			
+			// Now add 7 days into the result set, stopping either at 7 or if we
+			// reach WKST before (in the case of a short first week of the year)
+			for (let j = 0; j < 7; ++j) {
+				masks["yearDayIsInWeekNo"][i] = true;
+				++i;
+				if (masks["yearDayToWeekday"][i] === this._wkst)
+					break;
+			}
+		}
+		
+		// If we asked for week #1, it's possible that week #1 of the next year
+		// already started this year. Therefore we need to return also matching
+		// days of next year.
+		if (~this._byweekno.indexOf(1)) {
+			// Check week number 1 of next year as well
+			// TODO: Check -numweeks for next year
+			let i = firstWKSTOffset + nbWeeks * 7;
+			
+			if (firstWKSTOffset !== firstWKST)
+				i = i - (7 - firstWKST);
+			
+			if (i < masks["yearLen"]) {
+				// If the week starts in the next year, we don't care about it
+				for (let j = 0; j < 7; ++j) {
+					masks["yearDayIsInWeekNo"][i] = true;
+					++i;
+					if (masks["yearDayToWeekday"][i] === this._wkst)
+						break;
+				}
+			}
+		}
+		
+		if (firstWKSTOffset) {
+			// Check the last week number of last year as well.
+			// If firstWKSTOffset is 0, either the year start on week start or
+			// week #1 got days from last year, so there are no days from last
+			// years last week number in this year
+			let nbWeeksLastYear;
+			
+			if (!~this._byweekno.indexOf(-1)) {
+				const weekdayOf1stYearDay = formatDate(
+					new Date(year - 1, 0, 1, 0, 0, 0),
+					"N"
+				);
+				const lastYearLen = 365 + isLeapYear(year - 1)|0;
+				
+				let firstWKSTOffsetLastYear = (7 - weekdayOf1stYearDay + this._wkst) % 7;
+				
+				if (firstWKSTOffsetLastYear >= 4) {
+					// firstWKSTOffsetLastYear = 0;
+					nbWeeksLastYear =
+						52 + (((lastYearLen + (weekdayOf1stYearDay - this._wkst) % 7) % 7) / 4)|0;
+				}
+				
+				else {
+					nbWeeksLastYear = 52 + (((masks["yearLen"] - firstWKSTOffset) % 7) / 4)|0;
+				}
+			}
+			
+			else {
+				nbWeeksLastYear = -1;
+			}
+			
+			if (~this._byweekno.indexOf(nbWeeksLastYear))
+				for (let i = 0; i < firstWKSTOffset; ++i)
+					masks["yearDayIsInWeekNo"][i] = true;
+					
+		}
+	}
+	
+	/**
+	 * Build an array of every time of the day that matches the BYxxx
+	 * time criteria.
+	 *
+	 * It will only process this._freq at one time. So:
+	 * - for HOURLY frequencies it builds the minutes and second of the given
+	 * hour
+	 * - for MINUTELY frequencies it builds the seconds of the given minute
+	 * - for SECONDLY frequencies, it returns an array with one element
+	 *
+	 * This method is called every time an increment of at least one hour is
+	 * made.
+	 *
+	 * @param {number} hour
+	 * @param {number} minute
+	 * @param {number} second
+	 * @return {Array}
+	 * @private
+	 */
+	_getTimeSet (hour, minute, second) {
+		switch (this._freq) {
+			case RRule.HOURLY: {
+				const set = [];
+				for (const minute of this._byminute)
+					// Should we use another type?
+					set.push([hour, minute, second]);
+				// Sort?
+				return set;
+			}
+			
+			case RRule.MINUTELY: {
+				const set = [];
+				for (const second of this._bysecond)
+					// Should we use another type?
+					set.push([hour, second, second]);
+				// Sort?
+				return set;
+			}
+			
+			case RRule.SECONDLY:
+				return [[hour, minute, second]];
+				
+			default:
+				throw new Error("getTimeSet called with an invalid FREQ");
+		}
+	}
+	
+	// Iterator
+	// =========================================================================
+	
+	/**
+	 * This is the main function; where all the magic happens!
+	 *
+	 * The main idea is brute force made fast by not relying on Date functions.
+	 *
+	 * There is on big loop that examines every interval of the given frequency
+	 * (so every day, week, month, or year), constructs an array of all the
+	 * year
+	 * days of the interval (for daily frequencies, the array only has one
+	 * element, for weekly 7, and so on), and then filters out any days that do
+	 * not match the BYxxx parts.
+	 *
+	 * The algorithm does not try to be *smart* in calculating the increment of
+	 * the loop. That is, for a rule like "every day in January for 10 years"
+	 * the algorithm will loop through every day of the year, each year,
+	 * generating some 3650 iterations (+ some to account for the leap years).
+	 * This is a bit counter-intuitive, as it is obvious that the loop could
+	 * skip all the days in February till December since they are never going
+	 * to match.
+	 *
+	 * Fortunately, this approach is still super fast because it doesn't rely
+	 * on
+	 * Date functions, and instead does all the operations manually, either
+	 * arithmetically or using arrays as converters.
+	 *
+	 * Another quirk of this approach is that because the granularity is by
+	 * day,
+	 * higher frequencies (hourly, minutely, and secondly) have to have their
+	 * own special loops within the main loop, making the whole thing quite
+	 * convoluted. Moreover, at such frequencies, the brute-force approach
+	 * really starts to suck. For example, a rule like "Every minute, every Jan
+	 * 1st between 10:00 and 10:59, for 10 years" requires a tremendous amount
+	 * of useless iterations to jump from Jan 1st 10:59 at year 1 to Jan 1st
+	 * 10:00 at year 2.
+	 *
+	 * In order to make a *smart jump*, we would have to have a way to
+	 * determine
+	 * the gap between the next occurrence arithmetically. I think that would
+	 * require us to analyze each BYxxx rule part that limit the set (see the
+	 * RFC, page 43) at the given frequency. For example, a YEARLY frequency
+	 * doesn't need *smart jump* at all; MONTHLY and WEEKLY frequencies only
+	 * need to check BYMONTH; a DAILY frequency needs to check BYMONTH,
+	 * BYMONTHDAY, BYDAY, and so on. The check probably has to be done in
+	 * reverse order, e.g. for DAILY frequencies attempt to jump to the next
+	 * weekday (BYDAY) or next month day (BYMONTHDAY) (I don't know yet which
+	 * one should be first), and then if that results in a change of month,
+	 * attempt to jump to the next BYMONTH, and so on.
+	 *
+	 * TODO(Tam): See if this can be refactored to not rely on the outer while
+	 * loop...
+	 *
+	 * @return {IterableIterator<*>}
+	 */
+	* [Symbol.iterator] () {
+		let year = null,
+			month = null,
+			day = null,
+			hour = null,
+			minute = null,
+			second = null,
+			
+			daySet = null,
+			masks = null,
+			timeSet = null,
+			dtStart = null,
+			useCache = true,
+			total = 0;
+		
+		while (true) {
+			
+			// Go through the cache first
+			if (useCache) {
+				for (const occurrence in this._cache) {
+					dtStart = occurrence;
+					++total.total;
+					yield new Date(occurrence.getTime());
+				}
+				
+				useCache = false;
+				
+				// If the cache has been used up and we know there is nothing else...
+				if (total.total === this._total)
+					return;
+				
+				if (dtStart) {
+					dtStart = new Date(dtStart.getTime());
+					
+					// Skip the last occurrence of the cache
+					if (this._freq === RRule.SECONDLY) {
+						dtStart.setSeconds(dtStart.getSeconds() + this._interval);
+					}
+					
+					else {
+						dtStart.setSeconds(dtStart.getSeconds() + 1);
+					}
+				}
+			}
+			
+			if (this._count && total >= this._count)
+				return;
+			
+			if (dtStart === null) {
+				dtStart = new Date(this._dtstart.getTime());
+			}
+			
+			// Populate times
+			if (year === null) {
+				if (this._freq === RRule.WEEKLY) {
+					// We align the start date to WKST, so we can then simply loop
+					// by adding +7 days. The Python lib does some calculation magic
+					// at then end of the loop (when incrementing) to realign on
+					// first pass.
+					const tmp = new Date(dtStart.getTime());
+					tmp.setDate(
+						tmp.getDate() - pymod(
+							formatDate(dtStart, "N") - this._wkst,
+							7
+						)
+					);
+					
+					[year, month, day, hour, minute, second] =
+						formatDate(tmp, "Y n j G i s").split(" ");
+				}
+				
+				else {
+					[year, month, day, hour, minute, second] =
+						formatDate(dtStart, "Y n j G i s").split(" ");
+				}
+				
+				// Force back to ints (& remove leading zeros)
+				year = year|0;
+				month = month|0;
+				day = day|0;
+				hour = hour|0;
+				minute = minute|0;
+				second = second|0;
+			}
+			
+			// Initialize the time set
+			if (timeSet === null) {
+				if (this._freq < RRule.HOURLY) {
+					// For daily, weekly, monthly, or yearly, we don't need to
+					// calculate  a new time set.
+					timeSet = this._timeset;
+				}
+				
+				else {
+					// Initialize empty if it's not going to occur on the
+					// first iteration
+					if (
+						(this._freq >= RRule.HOURLY && this._byhour && !~this._byhour.indexOf(hour))
+						|| (this._freq >= RRule.MINUTELY && this._byminute && !~this._byminute.indexOf(minute))
+						|| (this._freq >= RRule.SECONDLY && this._bysecond && !~this._bysecond.indexOf(second))
+					) {
+						timeSet = [];
+					}
+					
+					else {
+						timeSet = this._getTimeSet(hour, minute, second);
+					}
+				}
+			}
+			
+			const maxCycles = RRule.REPEAT_CYCLES[
+				this._freq <= RRule.DAILY ? this._freq : RRule.DAILY
+			];
+			
+			for (let i = 0; i < maxCycles; ++i) {
+				// 1. Get an array of all days in the next interval (day, week,
+				// month, etc.). We'll filter out from this array all days that
+				// do not match the BYxxx conditions. To speed things up, we use
+				// days of the year (day numbers) instead of date.
+				if (daySet === null) {
+					// Rebuild the various masks and converters. These arrays
+					// will allow fast date operations without relying on
+					// Date functions.
+					if (
+						!masks.length
+						|| masks["year"] !== year
+						|| masks["month"] !== month
+					) {
+						masks = {
+							year: "",
+							month: "",
+						};
+						
+						// Only if year has changed
+						// TODO(Tam): Won't this always be true?
+						if (masks["year"] !== year) {
+							masks["leapYear"] = isLeapYear(year);
+							masks["yearLen"] = 365 + masks["leapYear"]|0;
+							masks["nextYearLen"] = 365 + isLeapYear(year + 1)|0;
+							masks["weekdayOf1stYearDay"] = formatDate(new Date(
+								year, 0, 1, 0, 0, 0
+							), "N");
+							masks["yearDayToWeekday"] = RRule.WEEKDAY_MASK.slice(
+								masks["weekdayOf1stYearDay"] - 1
+							);
+							
+							if (masks["leapYear"]) {
+								masks["yearDayToMonth"] = RRule.MONTH_MASK_366;
+								masks["yearDayToMonthDay"] = RRule.MONTHDAY_MASK_366;
+								masks["yearDayToMonthDayNegative"] = RRule.NEGATIVE_MONTHDAY_MASK_366;
+								masks["lastDayOfMonth"] = RRule.LAST_DAY_OF_MONTH_366;
+							}
+							
+							else {
+								masks["yearDayToMonth"] = RRule.MONTH_MASK;
+								masks["yearDayToMonthDay"] = RRule.MONTHDAY_MASK;
+								masks["yearDayToMonthDayNegative"] = RRule.NEGATIVE_MONTHDAY_MASK;
+								masks["lastDayOfMonth"] = RRule.LAST_DAY_OF_MONTH;
+							}
+							
+							if (this._byweekno)
+								this._buildWeekNoMask(year, month, day, masks);
+						}
+						
+						// Every time month or year changes
+						if (this._byweekdayNth)
+							this._buildNthWeekdayMask(year, month, day, masks);
+						
+						masks["year"] = year;
+						masks["month"] = month;
+					}
+					
+					// Calculate the current set
+					daySet = this._getDaySet(year, month, day, masks);
+					
+					const filteredSet = [];
+					
+					// Filter out the days based on the BYxxx rules
+					for (let yearDay of daySet) {
+						if (
+							this._bymonth
+							&& !~this._bymonth.indexOf(
+								masks["yearDayToMonth"][yearDay]
+							)
+						) continue;
+						
+						if (
+							this._byweekno
+							&& masks["yearDayIsInWeekNo"][yearDay] === undefined
+						) continue;
+						
+						if (this._byyearday) {
+							if (yearDay <= masks["yearLen"]) {
+								if (
+									!~this._byyearday.indexOf(yearDay + 1)
+									&& !~this._byyearday.indexOf(-masks["yearLen"] + yearDay)
+								) continue;
+							}
+							
+							else {
+								if (
+									!~this._byyearday.indexOf(yearDay + 1 - masks["yearLen"])
+									&& !~this._byyearday.indexOf(-masks["nextYearLen"] + yearDay - masks["yearLen"])
+								) continue;
+							}
+						}
+						
+						if (
+							(this._bymonthday || this._bymonthdayNegative)
+							&& !~this._bymonthday.indexOf(masks["yearDayToMonthDay"][yearDay])
+							&& !~this._bymonthdayNegative.indexOf(masks["yearDayToMonthDayNegative"][yearDay])
+						) continue;
+						
+						if (
+							(this._byweekday || this._byweekdayNth)
+							&& !~this._byweekday.indexOf(masks["yearDayToWeekday"][yearDay])
+							&& masks["yearDayIsNthWeekday"][yearDay] === undefined
+						) continue;
+						
+						filteredSet.push(yearDay);
+					}
+					
+					daySet = filteredSet;
+					
+					// If BYSETPOS is set, we need to expand the time set to
+					// filter by pos, so we'll make a special loop to return
+					// while generating
+					if (this._bysetpos && timeSet.length) {
+						let filteredSet = {};
+						
+						for (let pos of this._bysetpos) {
+							const n = timeSet.length;
+							
+							if (pos < 0) pos = n * daySet.length + pos;
+							else pos = pos - 1;
+							
+							const div = (pos / n)|0 // dayPos
+								, mod = pos % n; // timePos
+							
+							if (
+								daySet[div] !== undefined
+								&& timeSet[mod] !== undefined
+							) {
+								const yearDay = daySet[div]
+									, time    = timeSet[mod];
+								
+								// Used as key to ensure uniqueness
+								const tmp = `${year}:${yearDay}:${time[0]}:${time[1]}:${time[2]}`;
+								if (filteredSet[tmp] === undefined) {
+									filteredSet[tmp] = new Date(
+										year,
+										0,
+										yearDay,
+										time[0],
+										time[1],
+										time[2]
+									);
+								}
+							}
+						}
+						
+						filteredSet = Object.values(filteredSet);
+						filteredSet.sort((a, b) => a - b);
+						daySet = filteredSet;
+					}
+				}
+				
+				// 2. Loop, generate a vaild date, then yield the result.
+				// At the same time, we check the end condition and return
+				// null if we need to stop.
+				if (this._bysetpos && timeSet.length) {
+					for (const occurrence of daySet) {
+						// Consider end conditions
+						if (this._until && occurrence.getTime() > this._until.getTime()) {
+							this._total = total;
+							return;
+						}
+						
+						// Ignore occurrences before DTSTART
+						if (occurrence.getTime() >= dtStart.getTime()) {
+							++total;
+							this._cache.push(occurrence);
+							yield new Date(occurrence.getTime());
+						}
+					}
+				}
+				
+				// Normal loop, without BYSETPOS
+				else {
+					for (const yearDay of daySet) {
+						const occurrence = new Date(
+							year,
+							0,
+							yearDay,
+							0,
+							0,
+							0
+						);
+						
+						for (let time of timeSet) {
+							occurrence.setHours(time[0]);
+							occurrence.setMinutes(time[0]);
+							occurrence.setSeconds(time[0]);
+							
+							// Consider end conditions
+							if (this._until && occurrence.getTime() > this._until.getTime()) {
+								this._total = total;
+								return;
+							}
+							
+							// Ignore occurrences before DTSTART
+							if (occurrence.getTime() >= dtStart.getTime()) {
+								++total;
+								this._cache.push(occurrence);
+								yield new Date(occurrence.getTime());
+							}
+						}
+					}
+				}
+				
+				// 3. Reset the loop to the next interval
+				let daysIncrement = 0;
+				
+				switch (this._freq) {
+					
+					case RRule.YEARLY: {
+						// We don't care about month or day not existing, they
+						// are not used in the yearly frequency.
+						year += this._interval;
+						break;
+					}
+					
+					case RRule.MONTHLY: {
+						// We don't care about the day of the month not
+						// existing, it isn't used in the monthly frequency.
+						month += this._interval;
+						
+						if (month > 12) {
+							const div = (month / 12)|0;
+							month = month % 12;
+							year += div;
+							
+							if (month === 0) {
+								month = 12;
+								year -= 1;
+							}
+						}
+						break;
+					}
+					
+					case RRule.WEEKLY: {
+						daysIncrement = this._interval * 7;
+						break;
+					}
+					
+					case RRule.DAILY: {
+						daysIncrement = this._interval;
+						break;
+					}
+					
+					// For the time frequencies, things are a little bit
+					// different. We could just add this._interval hours,
+					// minutes, or seconds, but since the frequencies are so
+					// high and needs too much iteration it's actually a bit
+					// faster to have custom loops only call the Date function
+					// at the very end.
+					
+					case RRule.HOURLY: {
+						if (!daySet || daySet.length === 0) {
+							// An empty set means that this day has been
+							// filtered out by one of the BYxxx rules. So there
+							// is no need to examine it any further, we know
+							// nothing is going to occur anyway. So we jump to
+							// an iteration right before the next day.
+							hour += (((23 - hour) / this._interval) * this._interval)|0;
+						}
+						
+						let found = false;
+						
+						for (let j = 0; j < RRule.REPEAT_CYCLES[RRule.HOURLY]; ++j) {
+							hour += this._interval;
+							const div = (hour / 24)|0
+								, mod = hour % 24;
+							
+							if (div) {
+								hour = mod;
+								daysIncrement += div;
+							}
+							
+							if (!this._byhour || ~this._byhour.indexOf(hour)) {
+								found = true;
+								break;
+							}
+						}
+						
+						if (!found) {
+							this._total = total;
+							return;
+						}
+						
+						timeSet = this._getTimeSet(hour, minute, second);
+						break;
+					}
+					
+					case RRule.MINUTELY: {
+						if (!daySet || !daySet.length) {
+							minute += (((1439 - (hour * 60 * minute)) / this._interval)|0) * this._interval;
+						}
+						
+						let found = false;
+						
+						for (let j = 0; j < RRule.REPEAT_CYCLES[RRule.MINUTELY]; ++j) {
+							minute += this._interval;
+							let div = (minute / 60)|0,
+								mod = minute % 60;
+							
+							if (div) {
+								minute = mod;
+								hour += div;
+								
+								div = (hour / 24)|0;
+								mod = hour % 24;
+								
+								if (div) {
+									hour = mod;
+									daysIncrement += div;
+								}
+							}
+							
+							if (
+								(!this._byhour || ~this._byhour.indexOf(hour))
+								&& (!this._byminute || ~this._byminute.indexOf(minute))
+							) {
+								found = true;
+								return;
+							}
+						}
+						
+						if (!found) {
+							this._total = total;
+							return;
+						}
+						
+						timeSet = this._getTimeSet(hour, minute, second);
+						break;
+					}
+					
+					case RRule.SECONDLY: {
+						if (!daySet || !daySet.length) {
+							second += (((86399 - (hour * 3600 + minute * 60 + second)) / this._interval)|0);
+						}
+						
+						let found = false;
+						for (let j = 0; j < RRule.REPEAT_CYCLES[RRule.SECONDLY]; ++j) {
+							second += this._interval;
+							
+							let div = (second / 60)|0,
+								mod = second % 60;
+							
+							if (div) {
+								second = mod;
+								minute += div;
+								
+								div = (minute / 60)|0;
+								mod = minute % 60;
+								
+								if (div) {
+									minute = mod;
+									hour += div;
+									
+									div = (hour / 24)|0;
+									mod = hour % 24;
+									
+									if (div) {
+										hour = mod;
+										daysIncrement += div;
+									}
+								}
+							}
+							
+							if (
+								(!this._byhour || ~this._byhour.indexOf(hour))
+								|| (!this._byminute || ~this._byminute.indexOf(minute))
+								|| (!this._bysecond || ~this._bysecond.indexOf(second))
+							) {
+								found = true;
+								break;
+							}
+						}
+						
+						if (!found) {
+							this._total = total;
+							return;
+						}
+						
+						timeSet = this._getTimeSet(hour, minute, second);
+						break;
+					}
+				}
+				
+				// Here we take a little shortcut from the Python version by
+				// using Date()
+				if (daysIncrement) {
+					const d = new Date(year, month - 1, day);
+					d.setDate(d.getDate() + daysIncrement);
+					[year, month, day] = formatDate(d, "Y-n-j").split("-");
+				}
+				
+				// Reset the loop
+				daySet = null;
+			}
+			
+			this._total = total;
+			return;
+		}
+	}
 	
 	// Constants
 	// =========================================================================
